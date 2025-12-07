@@ -86,13 +86,32 @@ class GeminiServiceClass {
 
   private ensureInitialized(): void {
     if (!this.client || !this.textModel || !this.imageModel) {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      // 1. localStorage에서 먼저 확인
+      const storedApiKey = localStorage.getItem('gemini_api_key');
+      // 2. 환경변수에서 확인
+      const envApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+      const apiKey = storedApiKey || envApiKey;
+
       if (apiKey && apiKey !== 'your_gemini_api_key_here') {
         this.initialize(apiKey);
       } else {
-        throw new Error('Gemini API key not configured. Please set VITE_GEMINI_API_KEY in .env file.');
+        throw new Error('Gemini API 키가 설정되지 않았습니다. 설정 페이지에서 API 키를 입력해주세요.');
       }
     }
+  }
+
+  isInitialized(): boolean {
+    return !!(this.client && this.textModel && this.imageModel);
+  }
+
+  setApiKey(apiKey: string): void {
+    localStorage.setItem('gemini_api_key', apiKey);
+    this.initialize(apiKey);
+  }
+
+  getApiKey(): string | null {
+    return localStorage.getItem('gemini_api_key');
   }
 
   async generateText(prompt: string, options: TextGenerationOptions = {}): Promise<string> {

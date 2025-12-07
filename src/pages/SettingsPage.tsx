@@ -1,18 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button, Input, Toggle, Slider, Card, Toast } from '@/components/common';
 import { useCostStore } from '@/stores';
+import { geminiService } from '@/services/gemini/GeminiService';
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { settings, updateSettings } = useCostStore();
-  const [apiKey, setApiKey] = useState(import.meta.env.VITE_GEMINI_API_KEY || '');
+  const [apiKey, setApiKey] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
+  useEffect(() => {
+    // localStorage에서 저장된 API 키 불러오기
+    const savedKey = geminiService.getApiKey();
+    if (savedKey) {
+      setApiKey(savedKey);
+    }
+  }, []);
+
   const handleSave = () => {
-    // In a real app, this would save to secure storage
-    setToast({ message: '설정이 저장되었습니다', type: 'success' });
+    if (apiKey.trim()) {
+      geminiService.setApiKey(apiKey.trim());
+      setToast({ message: 'API 키가 저장되었습니다. 이제 AI 기능을 사용할 수 있습니다!', type: 'success' });
+    } else {
+      setToast({ message: '설정이 저장되었습니다', type: 'success' });
+    }
   };
 
   return (
@@ -47,8 +60,17 @@ const SettingsPage: React.FC = () => {
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="AIza..."
-                helperText="Google AI Studio에서 API 키를 발급받으세요"
+                helperText="Google AI Studio (aistudio.google.com)에서 무료로 API 키를 발급받으세요"
               />
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <p className="text-sm text-blue-400 font-medium mb-1">API 키 발급 방법:</p>
+                <ol className="text-xs text-gray-400 list-decimal list-inside space-y-1">
+                  <li>Google AI Studio 접속 (aistudio.google.com)</li>
+                  <li>Google 계정으로 로그인</li>
+                  <li>"Get API Key" 클릭 후 키 생성</li>
+                  <li>생성된 키를 위 입력란에 붙여넣기</li>
+                </ol>
+              </div>
               <p className="text-xs text-gray-500">
                 API 키는 브라우저 로컬에만 저장되며 외부로 전송되지 않습니다.
               </p>
