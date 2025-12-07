@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button, LoadingSpinner, TextArea } from '@/components/common';
 import { geminiService } from '@/services/gemini/GeminiService';
+import { parseJsonResponse } from '@/utils/parseJsonResponse';
 import type { WizardData } from '../StepWizard';
 
 interface StoryStructureStepProps {
@@ -84,7 +85,7 @@ export const StoryStructureStep: React.FC<StoryStructureStepProps> = ({
         temperature: 0.7,
       });
 
-      const storyStructure = JSON.parse(response);
+      const storyStructure = parseJsonResponse(response);
       updateData({ storyStructure });
     } catch (err) {
       console.error('Story structure generation failed:', err);

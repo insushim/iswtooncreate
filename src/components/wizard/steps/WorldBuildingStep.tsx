@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button, LoadingSpinner, TextArea, Input } from '@/components/common';
 import { geminiService } from '@/services/gemini/GeminiService';
+import { parseJsonResponse } from '@/utils/parseJsonResponse';
 import type { WizardData } from '../StepWizard';
 
 interface WorldBuildingStepProps {
@@ -63,7 +64,7 @@ export const WorldBuildingStep: React.FC<WorldBuildingStepProps> = ({
         temperature: 0.7,
       });
 
-      const worldBuilding = JSON.parse(response);
+      const worldBuilding = parseJsonResponse(response);
       updateData({ worldBuilding });
     } catch (err) {
       console.error('World building generation failed:', err);

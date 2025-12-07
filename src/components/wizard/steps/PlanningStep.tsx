@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button, LoadingSpinner, TextArea } from '@/components/common';
 import { geminiService } from '@/services/gemini/GeminiService';
+import { parseJsonResponse } from '@/utils/parseJsonResponse';
 import type { WizardData } from '../StepWizard';
 
 interface PlanningStepProps {
@@ -55,7 +56,7 @@ export const PlanningStep: React.FC<PlanningStepProps> = ({
         temperature: 0.7,
       });
 
-      const planning = JSON.parse(response);
+      const planning = parseJsonResponse(response);
       updateData({ planning });
     } catch (err) {
       console.error('Planning generation failed:', err);

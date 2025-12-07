@@ -1,4 +1,5 @@
 import { geminiService } from '../gemini/GeminiService';
+import { parseJsonResponse } from '@/utils/parseJsonResponse';
 import type { Episode, Panel, Character } from '@/types';
 
 export interface StoryFlowAnalysis {
@@ -135,7 +136,7 @@ class StoryAnalyzerClass {
     });
 
     try {
-      return JSON.parse(response);
+      return parseJsonResponse(response);
     } catch {
       return {
         characters: [],
@@ -203,7 +204,7 @@ class StoryAnalyzerClass {
     });
 
     try {
-      return JSON.parse(response);
+      return parseJsonResponse(response);
     } catch {
       return {
         engagement: 5,
@@ -237,7 +238,7 @@ class StoryAnalyzerClass {
 
   private parseAnalysisResponse(response: string): StoryFlowAnalysis {
     try {
-      return JSON.parse(response);
+      return parseJsonResponse(response);
     } catch {
       return {
         pacing: 'good',

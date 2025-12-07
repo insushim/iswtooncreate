@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, LoadingSpinner, TextArea, Badge } from '@/components/common';
 import { geminiService } from '@/services/gemini/GeminiService';
+import { parseJsonResponse } from '@/utils/parseJsonResponse';
 import type { WizardData } from '../StepWizard';
 
 interface EpisodePlanStepProps {
@@ -72,7 +73,7 @@ export const EpisodePlanStep: React.FC<EpisodePlanStepProps> = ({
         maxTokens: 4096,
       });
 
-      const result = JSON.parse(response);
+      const result = parseJsonResponse(response);
       updateData({
         episodePlans: [...data.episodePlans, ...result.episodes],
       });

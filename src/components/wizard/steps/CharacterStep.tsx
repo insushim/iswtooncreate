@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, LoadingSpinner, Input, TextArea, Dropdown } from '@/components/common';
 import { geminiService } from '@/services/gemini/GeminiService';
+import { parseJsonResponse } from '@/utils/parseJsonResponse';
 import type { WizardData } from '../StepWizard';
 
 interface CharacterStepProps {
@@ -91,7 +92,7 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({
         temperature: 0.8,
       });
 
-      const result = JSON.parse(response);
+      const result = parseJsonResponse(response);
       updateData({ characters: result.characters });
     } catch (err) {
       console.error('Character generation failed:', err);
