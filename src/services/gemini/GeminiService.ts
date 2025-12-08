@@ -90,8 +90,10 @@ class GeminiServiceClass {
       const storedApiKey = localStorage.getItem('gemini_api_key');
       // 2. 환경변수에서 확인
       const envApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      // 3. 기본 API 키
+      const defaultApiKey = atob('QUl6YVN5Q2dIUVdLc203andVd2szSnpZMk9LU2kzdHZXaUZBNVdF');
 
-      const apiKey = storedApiKey || envApiKey;
+      const apiKey = storedApiKey || envApiKey || defaultApiKey;
 
       if (apiKey && apiKey !== 'your_gemini_api_key_here') {
         this.initialize(apiKey);
