@@ -186,6 +186,20 @@ const SettingsPage: React.FC = () => {
               <p className="text-xs text-gray-500">
                 API 키는 브라우저 로컬에만 저장되며 외부로 전송되지 않습니다.
               </p>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  if (apiKey.trim() && !apiKey.includes('•')) {
+                    geminiService.setApiKey(apiKey.trim());
+                    setToast({ message: 'API 키가 저장되었습니다!', type: 'success' });
+                  } else {
+                    setToast({ message: '유효한 API 키를 입력해주세요.', type: 'error' });
+                  }
+                }}
+                className="mt-4"
+              >
+                API 키 저장
+              </Button>
             </div>
           </Card>
 

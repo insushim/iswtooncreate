@@ -54,6 +54,7 @@ export const PlanningStep: React.FC<PlanningStepProps> = ({
 
       const response = await geminiService.generateText(prompt, {
         temperature: 0.7,
+        maxTokens: 8192,
       });
 
       const planning = parseJsonResponse(response);

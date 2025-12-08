@@ -36,60 +36,36 @@ export const EpisodePlanStep: React.FC<EpisodePlanStepProps> = ({
       const startEpisode = data.episodePlans.length + 1;
       const endEpisode = Math.min(startEpisode + generateCount - 1, data.episodeCount);
 
-      // 이전 에피소드 요약 생성
-      const previousEpisodesSummary = data.episodePlans.length > 0
-        ? `
-        [이미 작성된 에피소드 - 이어서 작성해주세요]
-        ${data.episodePlans.map(ep =>
-          `${ep.episodeNumber}화 "${ep.title}": ${ep.summary} (엔딩: ${ep.endingHook})`
-        ).join('\n        ')}
+      // 이전 에피소드 제목들 (중복 방지용)
+      const existingTitles = data.episodePlans.map(ep => ep.title);
+      const lastEpisode = data.episodePlans[data.episodePlans.length - 1];
 
-        위 내용에 이어서 자연스럽게 연결되는 새로운 에피소드를 작성해주세요.
-        이전 에피소드와 내용이 중복되지 않도록 주의하세요.
-        `
-        : '';
+      const prompt = `웹툰 "${data.title}" (${data.genre})의 에피소드 ${startEpisode}~${endEpisode}화를 작성하세요.
 
-      const prompt = `
-        웹툰 에피소드 플랜을 작성해주세요.
+시놉시스: ${data.planning?.synopsis}
+캐릭터: ${data.characters.map(c => c.name).join(', ')}
 
-        작품 정보:
-        - 제목: ${data.title}
-        - 장르: ${data.genre}
-        - 총 ${data.episodeCount}화 완결
-        - 시놉시스: ${data.planning?.synopsis}
+${data.episodePlans.length > 0 ? `
+[중요] 이미 작성된 에피소드 (${data.episodePlans.length}화까지 완료):
+${data.episodePlans.slice(-3).map(ep => `- ${ep.episodeNumber}화 "${ep.title}": ${ep.summary}`).join('\n')}
 
-        스토리 구조:
-        ${JSON.stringify(data.storyStructure.acts, null, 2)}
+마지막 ${lastEpisode.episodeNumber}화 엔딩: "${lastEpisode.endingHook}"
 
-        캐릭터:
-        ${data.characters.map(c => `${c.name}: ${c.role}`).join(', ')}
-        ${previousEpisodesSummary}
+[절대 금지] 다음 제목들은 이미 사용됨 - 절대 재사용하지 마세요:
+${existingTitles.join(', ')}
 
-        ${startEpisode}화부터 ${endEpisode}화까지의 **새로운** 에피소드 플랜을 작성해주세요.
-        - 이전 에피소드와 내용이 겹치면 안 됩니다
-        - 스토리가 자연스럽게 진행되어야 합니다
-        - 전체 ${data.episodeCount}화 중 현재 ${startEpisode}~${endEpisode}화 구간입니다
+${startEpisode}화는 ${lastEpisode.episodeNumber}화의 엔딩("${lastEpisode.endingHook}")에서 이어져야 합니다.
+` : '1화부터 시작합니다.'}
 
-        JSON 형식으로 응답해주세요:
-        {
-          "episodes": [
-            {
-              "episodeNumber": 숫자,
-              "title": "에피소드 제목 (이전과 다른 새로운 제목)",
-              "summary": "에피소드 요약 (3-4문장, 새로운 내용)",
-              "keyEvents": ["주요 사건1", "주요 사건2"],
-              "emotionalArc": "exposition|rising|climax|falling|resolution",
-              "endingHook": "다음 화 떡밥/궁금증 유발 요소",
-              "characters": ["등장 캐릭터"],
-              "locations": ["등장 장소"]
-            }
-          ]
-        }
-      `;
+반드시 ${startEpisode}화부터 ${endEpisode}화까지 ${endEpisode - startEpisode + 1}개 에피소드를 생성하세요.
+episodeNumber는 반드시 ${startEpisode}, ${startEpisode + 1}, ... ${endEpisode} 순서로 작성하세요.
+
+JSON만 출력:
+{"episodes":[{"episodeNumber":${startEpisode},"title":"새로운제목","summary":"요약","keyEvents":["사건1"],"emotionalArc":"rising","endingHook":"다음화떡밥","characters":["캐릭터"],"locations":["장소"]}]}`;
 
       const response = await geminiService.generateText(prompt, {
         temperature: 0.7,
-        maxTokens: 4096,
+        maxTokens: 8192,
       });
 
       const result = parseJsonResponse(response);

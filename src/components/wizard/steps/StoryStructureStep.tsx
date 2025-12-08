@@ -83,6 +83,7 @@ export const StoryStructureStep: React.FC<StoryStructureStepProps> = ({
 
       const response = await geminiService.generateText(prompt, {
         temperature: 0.7,
+        maxTokens: 8192,
       });
 
       const storyStructure = parseJsonResponse(response);

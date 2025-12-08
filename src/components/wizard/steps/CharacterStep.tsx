@@ -46,50 +46,24 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({
     setError(null);
 
     try {
-      const prompt = `
-        웹툰 캐릭터들을 생성해주세요.
+      // 회차에 따라 캐릭터 수 조절
+      const characterCount = data.episodeCount <= 20 ? 5 : data.episodeCount <= 50 ? 7 : 10;
 
-        작품 정보:
-        - 제목: ${data.title}
-        - 장르: ${data.genre}
-        - 시놉시스: ${data.planning.synopsis}
-        - 세계관: ${data.worldBuilding.setting}
+      const prompt = `웹툰 "${data.title}" (${data.genre})의 캐릭터 ${characterCount}명을 JSON으로 생성해주세요.
 
-        다음 형식의 JSON으로 4-6명의 캐릭터를 생성해주세요:
-        {
-          "characters": [
-            {
-              "name": "이름",
-              "koreanName": "한국 이름",
-              "role": "protagonist|antagonist|supporting|minor",
-              "age": 숫자,
-              "gender": "male|female|non-binary|other",
-              "personality": ["성격1", "성격2", "성격3"],
-              "appearance": {
-                "height": "키 (예: 178cm)",
-                "bodyType": "체형",
-                "skinTone": "피부톤",
-                "hairColor": "머리색",
-                "hairStyle": "머리 스타일",
-                "eyeColor": "눈 색",
-                "eyeShape": "눈 모양",
-                "faceShape": "얼굴형",
-                "distinguishingFeatures": ["특징1", "특징2"],
-                "defaultOutfit": "기본 복장",
-                "accessories": ["액세서리1"]
-              },
-              "backstory": "배경 스토리 (2-3문장)",
-              "motivation": "동기",
-              "arc": "캐릭터 성장 방향"
-            }
-          ]
-        }
+시놉시스: ${data.planning.synopsis}
+총 회차: ${data.episodeCount}화
 
-        주인공 1명, 주요 조연 2-3명, 적대자 1명을 포함해주세요.
-      `;
+반드시 아래 JSON 형식만 출력하세요. 다른 텍스트 없이 JSON만 출력:
+{"characters":[{"name":"이름","koreanName":"한국이름","role":"protagonist","age":20,"gender":"male","personality":["성격1","성격2"],"appearance":{"height":"175cm","hairColor":"검정","hairStyle":"단발","eyeColor":"갈색"},"backstory":"배경스토리","motivation":"동기","arc":"성장방향"}]}
+
+role: protagonist(주인공)/antagonist(적대자)/supporting(조연)/minor(단역)
+gender: male/female
+구성: 주인공 1-2명, 적대자 1-2명, 조연 ${Math.max(2, characterCount - 4)}명, 단역 1-2명`;
 
       const response = await geminiService.generateText(prompt, {
-        temperature: 0.8,
+        temperature: 0.7,
+        maxTokens: 8192,
       });
 
       const result = parseJsonResponse(response);

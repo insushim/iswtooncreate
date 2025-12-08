@@ -12,7 +12,7 @@
   },
   "homepage": "https://insushim.github.io/iswtooncreate",
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
+    "@google/generative-ai": "^0.24.1",
     "dexie": "^4.0.8",
     "firebase": "^12.6.0",
     "framer-motion": "^11.11.9",

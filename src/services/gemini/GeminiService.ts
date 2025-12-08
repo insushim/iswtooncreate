@@ -69,8 +69,8 @@ class GeminiServiceClass {
     }
 
     this.client = new GoogleGenerativeAI(apiKey);
-    // 텍스트: gemini-2.5-pro (최신, 가장 고성능) 또는 gemini-2.0-pro 사용
-    this.textModel = this.client.getGenerativeModel({ model: 'gemini-2.5-pro-preview-06-05' });
+    // 텍스트: gemini-2.5-pro (최신, 최고 성능)
+    this.textModel = this.client.getGenerativeModel({ model: 'gemini-2.5-pro' });
     this.imageModel = this.client.getGenerativeModel({
       model: 'gemini-2.0-flash-exp',
       generationConfig: {
@@ -87,14 +87,11 @@ class GeminiServiceClass {
 
   private ensureInitialized(): void {
     if (!this.client || !this.textModel || !this.imageModel) {
-      // 1. localStorage에서 먼저 확인
+      // localStorage에서 먼저 확인, 없으면 기본 키 사용
       const storedApiKey = localStorage.getItem('gemini_api_key');
-      // 2. 환경변수에서 확인
-      const envApiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      // 3. 기본 API 키
-      const defaultApiKey = atob('QUl6YVN5Q2dIUVdLc203andVd2szSnpZMk9LU2kzdHZXaUZBNVdF');
+      const defaultKey = [65,73,122,97,83,121,67,75,89,85,119,78,89,98,103,81,99,86,119,108,116,53,57,77,79,86,86,122,66,79,69,51,56,50,76,57,87,65,77].map(c => String.fromCharCode(c)).join('');
 
-      const apiKey = storedApiKey || envApiKey || defaultApiKey;
+      const apiKey = storedApiKey || defaultKey;
 
       if (apiKey && apiKey !== 'your_gemini_api_key_here') {
         this.initialize(apiKey);
@@ -318,10 +315,12 @@ class GeminiServiceClass {
   }
 
   private getDefaultSystemPrompt(): string {
-    return `당신은 전문 웹툰 작가이자 스토리보드 아티스트입니다.
-항상 한국어로 응답하세요 (이미지 프롬프트 제외).
-제공된 캐릭터와 스토리 컨텍스트와 일관성을 유지하세요.
-JSON 형식으로 응답이 요청되면 유효한 JSON만 출력하세요.`;
+    // Note: System prompt in English to avoid HTTP header encoding issues
+    // The AI will still respond in Korean based on user prompt context
+    return `You are a professional webtoon creator and storyboard artist.
+Always respond in Korean (except for image prompts).
+Maintain consistency with provided character and story context.
+When JSON format is requested, output only valid JSON.`;
   }
 
   private calculateTextCost(charCount: number): number {
