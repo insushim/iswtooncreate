@@ -69,7 +69,8 @@ class GeminiServiceClass {
     }
 
     this.client = new GoogleGenerativeAI(apiKey);
-    this.textModel = this.client.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // 텍스트: gemini-2.5-pro (최신, 가장 고성능) 또는 gemini-2.0-pro 사용
+    this.textModel = this.client.getGenerativeModel({ model: 'gemini-2.5-pro-preview-06-05' });
     this.imageModel = this.client.getGenerativeModel({
       model: 'gemini-2.0-flash-exp',
       generationConfig: {
