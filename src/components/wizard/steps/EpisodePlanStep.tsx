@@ -115,6 +115,36 @@ export const EpisodePlanStep: React.FC<EpisodePlanStepProps> = ({
     updateData({ episodePlans: newPlans });
   };
 
+  const handleDeleteEpisode = (index: number) => {
+    if (!confirm(`${data.episodePlans[index].episodeNumber}화를 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    const newPlans = data.episodePlans.filter((_, i) => i !== index);
+    // 삭제 후 에피소드 번호 재정렬
+    const renumberedPlans = newPlans.map((ep, i) => ({
+      ...ep,
+      episodeNumber: i + 1,
+    }));
+
+    updateData({ episodePlans: renumberedPlans });
+
+    // 선택된 에피소드가 삭제되면 선택 해제
+    if (selectedEpisode === index) {
+      setSelectedEpisode(null);
+    } else if (selectedEpisode !== null && selectedEpisode > index) {
+      setSelectedEpisode(selectedEpisode - 1);
+    }
+  };
+
+  const handleDeleteAllEpisodes = () => {
+    if (!confirm('모든 에피소드를 삭제하시겠습니까?')) {
+      return;
+    }
+    updateData({ episodePlans: [] });
+    setSelectedEpisode(null);
+  };
+
   const getEmotionalArcColor = (arc: string) => {
     const colors: Record<string, string> = {
       exposition: 'primary',
@@ -207,31 +237,49 @@ export const EpisodePlanStep: React.FC<EpisodePlanStepProps> = ({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                onClick={() => setSelectedEpisode(selectedEpisode === index ? null : index)}
                 className={`
-                  cursor-pointer rounded-xl p-4 border-2 transition-all duration-200
+                  relative rounded-xl p-4 border-2 transition-all duration-200
                   ${selectedEpisode === index
                     ? 'border-purple-500 bg-purple-500/10'
                     : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
                   }
                 `}
               >
-                <div className="flex items-start justify-between mb-2">
-                  <span className="text-3xl font-bold text-purple-400">
-                    {episode.episodeNumber}
-                  </span>
-                  <Badge variant={getEmotionalArcColor(episode.emotionalArc) as any}>
-                    {getEmotionalArcLabel(episode.emotionalArc)}
-                  </Badge>
-                </div>
-                <h4 className="text-lg font-bold text-white mb-2">{episode.title}</h4>
-                <p className="text-sm text-gray-400 line-clamp-2">{episode.summary}</p>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {episode.characters?.slice(0, 3).map((char: string, i: number) => (
-                    <span key={i} className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded">
-                      {char}
+                {/* 삭제 버튼 */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteEpisode(index);
+                  }}
+                  className="absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500/20 hover:bg-red-500/40 flex items-center justify-center text-red-400 hover:text-red-300 transition-colors"
+                  title="에피소드 삭제"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+
+                <div
+                  onClick={() => setSelectedEpisode(selectedEpisode === index ? null : index)}
+                  className="cursor-pointer"
+                >
+                  <div className="flex items-start justify-between mb-2 pr-6">
+                    <span className="text-3xl font-bold text-purple-400">
+                      {episode.episodeNumber}
                     </span>
-                  ))}
+                    <Badge variant={getEmotionalArcColor(episode.emotionalArc) as any}>
+                      {getEmotionalArcLabel(episode.emotionalArc)}
+                    </Badge>
+                  </div>
+                  <h4 className="text-lg font-bold text-white mb-2">{episode.title}</h4>
+                  <p className="text-sm text-gray-400 line-clamp-2">{episode.summary}</p>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {episode.characters?.slice(0, 3).map((char: string, i: number) => (
+                      <span key={i} className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded">
+                        {char}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </motion.div>
             ))}
@@ -302,21 +350,34 @@ export const EpisodePlanStep: React.FC<EpisodePlanStepProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Generate More */}
-          {data.episodePlans.length < data.episodeCount && !isGenerating && (
-            <div className="flex items-center justify-center gap-4 pt-4">
-              <select
-                value={generateCount}
-                onChange={(e) => setGenerateCount(Number(e.target.value))}
-                className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
-              >
-                {[3, 5, 10].map(n => (
-                  <option key={n} value={n}>{n}화 추가</option>
-                ))}
-              </select>
-              <Button onClick={generateEpisodePlans} variant="primary">
-                다음 에피소드 생성
-              </Button>
+          {/* Generate More & Delete All */}
+          {!isGenerating && (
+            <div className="flex items-center justify-between pt-4">
+              {/* 전체 삭제 버튼 */}
+              {data.episodePlans.length > 0 && (
+                <Button onClick={handleDeleteAllEpisodes} variant="danger" size="sm">
+                  전체 삭제
+                </Button>
+              )}
+              {data.episodePlans.length === 0 && <div />}
+
+              {/* 추가 생성 */}
+              {data.episodePlans.length < data.episodeCount && (
+                <div className="flex items-center gap-4">
+                  <select
+                    value={generateCount}
+                    onChange={(e) => setGenerateCount(Number(e.target.value))}
+                    className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
+                  >
+                    {[3, 5, 10].map(n => (
+                      <option key={n} value={n}>{n}화 추가</option>
+                    ))}
+                  </select>
+                  <Button onClick={generateEpisodePlans} variant="primary">
+                    다음 에피소드 생성
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
