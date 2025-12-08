@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -14,6 +14,8 @@ import {
 import { WizardProgress } from './WizardProgress';
 import { useProjectStore } from '@/stores/projectStore';
 import { Button, Toast } from '@/components/common';
+
+const WIZARD_STORAGE_KEY = 'webtoon_wizard_progress';
 
 const STEPS = [
   { id: 'basic', title: '기본 정보', component: BasicInfoStep },
@@ -85,9 +87,46 @@ export const StepWizard: React.FC = () => {
   const [wizardData, setWizardData] = useState<WizardData>(initialData);
   const [isGenerating, setIsGenerating] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const [savedProgress, setSavedProgress] = useState<{ step: number; data: WizardData } | null>(null);
 
   const navigate = useNavigate();
   const { createProject } = useProjectStore();
+
+  // 저장된 진행 상황 확인
+  useEffect(() => {
+    const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.data && parsed.data.title) {
+          setSavedProgress(parsed);
+          setShowResumeDialog(true);
+        }
+      } catch {}
+    }
+  }, []);
+
+  // 진행 상황 자동 저장 (스텝 또는 데이터 변경 시)
+  useEffect(() => {
+    if (wizardData.title) {
+      const progress = { step: currentStep, data: wizardData };
+      localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(progress));
+    }
+  }, [currentStep, wizardData]);
+
+  const handleResume = () => {
+    if (savedProgress) {
+      setWizardData(savedProgress.data);
+      setCurrentStep(savedProgress.step);
+    }
+    setShowResumeDialog(false);
+  };
+
+  const handleStartNew = () => {
+    localStorage.removeItem(WIZARD_STORAGE_KEY);
+    setShowResumeDialog(false);
+  };
 
   const CurrentStepComponent = STEPS[currentStep].component;
 
@@ -198,6 +237,9 @@ export const StepWizard: React.FC = () => {
         });
       }
 
+      // 저장된 진행 상황 삭제
+      localStorage.removeItem(WIZARD_STORAGE_KEY);
+
       setToast({ message: '프로젝트가 생성되었습니다!', type: 'success' });
 
       setTimeout(() => {
@@ -213,6 +255,39 @@ export const StepWizard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900">
+      {/* 진행 상황 복구 대화상자 */}
+      {showResumeDialog && savedProgress && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-gray-800 rounded-2xl p-6 max-w-md mx-4 border border-gray-700"
+          >
+            <h3 className="text-xl font-bold text-white mb-2">이전 작업이 있습니다</h3>
+            <p className="text-gray-400 mb-4">
+              "<span className="text-purple-400">{savedProgress.data.title}</span>" 프로젝트의
+              <span className="text-white font-medium"> {STEPS[savedProgress.step].title}</span> 단계까지 작업하셨습니다.
+            </p>
+            <div className="text-sm text-gray-500 mb-6">
+              {savedProgress.data.characters.length > 0 && (
+                <p>캐릭터 {savedProgress.data.characters.length}명 생성됨</p>
+              )}
+              {savedProgress.data.episodePlans.length > 0 && (
+                <p>에피소드 {savedProgress.data.episodePlans.length}화 계획됨</p>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <Button variant="ghost" onClick={handleStartNew} className="flex-1">
+                새로 시작
+              </Button>
+              <Button variant="primary" onClick={handleResume} className="flex-1">
+                이어서 작업
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
