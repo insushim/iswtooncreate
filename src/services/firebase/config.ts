@@ -2,16 +2,28 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// Firebase 설정은 설정 페이지에서 입력받음
+// 기본 Firebase 설정
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAlf3rgKVIw6-iwlG66bJAQNiERBk8SobU",
+  authDomain: "wordgame-fc059.firebaseapp.com",
+  projectId: "wordgame-fc059",
+  storageBucket: "wordgame-fc059.firebasestorage.app",
+  messagingSenderId: "323299559321",
+  appId: "1:323299559321:web:7cfb59a08c5c3d84063508",
+  measurementId: "G-Q0Y95ZPLSD"
+};
+
+// Firebase 설정 가져오기 (커스텀 설정이 있으면 사용, 없으면 기본값)
 const getFirebaseConfig = () => {
   const configStr = localStorage.getItem('firebase_config');
-  if (!configStr) return null;
-
-  try {
-    return JSON.parse(configStr);
-  } catch {
-    return null;
+  if (configStr) {
+    try {
+      return JSON.parse(configStr);
+    } catch {
+      // 파싱 실패 시 기본값 사용
+    }
   }
+  return DEFAULT_FIREBASE_CONFIG;
 };
 
 let app: ReturnType<typeof initializeApp> | null = null;
@@ -57,7 +69,8 @@ export const getGoogleProvider = () => {
 };
 
 export const isFirebaseConfigured = () => {
-  return !!localStorage.getItem('firebase_config');
+  // 기본값이 있으므로 항상 true
+  return true;
 };
 
 export const saveFirebaseConfig = (config: {
