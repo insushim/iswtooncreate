@@ -5,26 +5,27 @@
     <title>Webtoon Forge</title>
     <script>
       // GitHub Pages SPA redirect
-      // 현재 경로를 쿼리 파라미터로 변환하여 index.html로 리다이렉트
-      const path = window.location.pathname;
-      const search = window.location.search;
-      const hash = window.location.hash;
+      (function() {
+        var basePath = '/iswtooncreate';
+        var fullPath = window.location.pathname;
+        var search = window.location.search;
+        var hash = window.location.hash;
 
-      // base path 제거 (/iswtooncreate)
-      const basePath = '/iswtooncreate';
-      let redirectPath = path;
-      if (path.startsWith(basePath)) {
-        redirectPath = path.slice(basePath.length) || '/';
-      }
+        // /iswtooncreate 이후의 경로만 추출
+        var appPath = '/';
+        if (fullPath.indexOf(basePath) === 0) {
+          appPath = fullPath.substring(basePath.length) || '/';
+        }
 
-      // sessionStorage에 원래 경로 저장
-      sessionStorage.setItem('redirectPath', redirectPath + search + hash);
+        // sessionStorage에 원래 경로 저장
+        sessionStorage.setItem('redirectPath', appPath + search + hash);
 
-      // index.html로 리다이렉트
-      window.location.replace(basePath + '/');
+        // /iswtooncreate/로 리다이렉트 (절대 경로)
+        window.location.replace(basePath + '/');
+      })();
     </script>
   </head>
   <body>
-    리다이렉트 중...
+    <p>리다이렉트 중...</p>
   </body>
 </html>

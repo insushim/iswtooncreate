@@ -15,9 +15,10 @@
     <script>
       // GitHub Pages SPA redirect handler
       (function() {
-        const redirectPath = sessionStorage.getItem('redirectPath');
+        var redirectPath = sessionStorage.getItem('redirectPath');
         if (redirectPath) {
           sessionStorage.removeItem('redirectPath');
+          // basename이 있으므로 그냥 앱 내부 경로만 사용
           window.history.replaceState(null, '', redirectPath);
         }
       })();
