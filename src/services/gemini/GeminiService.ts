@@ -69,7 +69,7 @@ class GeminiServiceClass {
     }
 
     this.client = new GoogleGenerativeAI(apiKey);
-    this.textModel = this.client.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    this.textModel = this.client.getGenerativeModel({ model: 'gemini-1.5-flash' });
     this.imageModel = this.client.getGenerativeModel({
       model: 'gemini-2.0-flash-exp',
       generationConfig: {
