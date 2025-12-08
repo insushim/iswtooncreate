@@ -130,13 +130,73 @@ export const StepWizard: React.FC = () => {
         episodeCount: wizardData.episodeCount,
       });
 
-      // Update with additional data
-      const { updateProject } = useProjectStore.getState();
+      const { updateProject, addCharacter, addEpisode } = useProjectStore.getState();
+
+      // Update with additional data (planning, worldBuilding, storyStructure)
       await updateProject(project.id, {
         planning: wizardData.planning,
         worldBuilding: wizardData.worldBuilding,
         subGenres: wizardData.subGenres as any,
       });
+
+      // Save characters
+      for (const char of wizardData.characters) {
+        await addCharacter(project.id, {
+          name: char.name || '',
+          koreanName: char.koreanName || char.name || '',
+          role: char.role || 'supporting',
+          age: char.age || 20,
+          gender: char.gender || 'other',
+          personality: char.personality || [],
+          appearance: {
+            height: char.appearance?.height || '',
+            bodyType: char.appearance?.bodyType || '',
+            skinTone: char.appearance?.skinTone || '',
+            hairColor: char.appearance?.hairColor || '',
+            hairStyle: char.appearance?.hairStyle || '',
+            eyeColor: char.appearance?.eyeColor || '',
+            eyeShape: char.appearance?.eyeShape || '',
+            faceShape: char.appearance?.faceShape || '',
+            distinguishingFeatures: char.appearance?.distinguishingFeatures || [],
+            defaultOutfit: char.appearance?.defaultOutfit || '',
+            accessories: char.appearance?.accessories || [],
+          },
+          backstory: char.backstory || char.background || '',
+          motivation: char.motivation || '',
+          arc: char.arc || '',
+          relationships: char.relationships || [],
+          speechPattern: char.speechPattern || {
+            formality: 'casual',
+            vocabulary: [],
+            speechHabits: [],
+            emotionalTendency: '',
+          },
+          visualPrompt: char.visualPrompt || '',
+          referenceImages: char.referenceImages || [],
+          expressions: char.expressions || [],
+          poses: char.poses || [],
+          outfits: char.outfits || [],
+        });
+      }
+
+      // Save episode plans
+      for (const ep of wizardData.episodePlans) {
+        await addEpisode(project.id, {
+          episodeNumber: ep.episodeNumber,
+          title: ep.title,
+          summary: ep.summary || '',
+          status: 'planning',
+          panels: [],
+          keyEvents: ep.keyEvents || [],
+          emotionalArc: ep.emotionalArc || 'exposition',
+          endingHook: ep.endingHook || '',
+          characters: ep.characters || [],
+          locations: ep.locations || [],
+          wordCount: 0,
+          estimatedReadTime: 0,
+          translations: new Map(),
+        });
+      }
 
       setToast({ message: '프로젝트가 생성되었습니다!', type: 'success' });
 

@@ -36,11 +36,11 @@ interface ProjectState {
   setCurrentProject: (id: string | null) => Promise<void>;
   updateProjectStatus: (id: string, status: ProjectStatus) => Promise<void>;
 
-  addCharacter: (projectId: string, character: Omit<Character, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Character>;
+  addCharacter: (projectId: string, character: Omit<Character, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>) => Promise<Character>;
   updateCharacter: (projectId: string, characterId: string, updates: Partial<Character>) => Promise<void>;
   deleteCharacter: (projectId: string, characterId: string) => Promise<void>;
 
-  addEpisode: (projectId: string, episode: Omit<Episode, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Episode>;
+  addEpisode: (projectId: string, episode: Omit<Episode, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>) => Promise<Episode>;
   updateEpisode: (projectId: string, episodeId: string, updates: Partial<Episode>) => Promise<void>;
   deleteEpisode: (projectId: string, episodeId: string) => Promise<void>;
 
