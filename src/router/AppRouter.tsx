@@ -18,7 +18,7 @@ const PageLoader: React.FC = () => (
 
 const AppRouter: React.FC = () => {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/iswtooncreate">
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Home */}
