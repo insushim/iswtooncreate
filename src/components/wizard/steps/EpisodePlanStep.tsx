@@ -36,12 +36,26 @@ export const EpisodePlanStep: React.FC<EpisodePlanStepProps> = ({
       const startEpisode = data.episodePlans.length + 1;
       const endEpisode = Math.min(startEpisode + generateCount - 1, data.episodeCount);
 
+      // 이전 에피소드 요약 생성
+      const previousEpisodesSummary = data.episodePlans.length > 0
+        ? `
+        [이미 작성된 에피소드 - 이어서 작성해주세요]
+        ${data.episodePlans.map(ep =>
+          `${ep.episodeNumber}화 "${ep.title}": ${ep.summary} (엔딩: ${ep.endingHook})`
+        ).join('\n        ')}
+
+        위 내용에 이어서 자연스럽게 연결되는 새로운 에피소드를 작성해주세요.
+        이전 에피소드와 내용이 중복되지 않도록 주의하세요.
+        `
+        : '';
+
       const prompt = `
         웹툰 에피소드 플랜을 작성해주세요.
 
         작품 정보:
         - 제목: ${data.title}
         - 장르: ${data.genre}
+        - 총 ${data.episodeCount}화 완결
         - 시놉시스: ${data.planning?.synopsis}
 
         스토리 구조:
@@ -49,15 +63,20 @@ export const EpisodePlanStep: React.FC<EpisodePlanStepProps> = ({
 
         캐릭터:
         ${data.characters.map(c => `${c.name}: ${c.role}`).join(', ')}
+        ${previousEpisodesSummary}
 
-        ${startEpisode}화부터 ${endEpisode}화까지의 에피소드 플랜을 작성해주세요.
+        ${startEpisode}화부터 ${endEpisode}화까지의 **새로운** 에피소드 플랜을 작성해주세요.
+        - 이전 에피소드와 내용이 겹치면 안 됩니다
+        - 스토리가 자연스럽게 진행되어야 합니다
+        - 전체 ${data.episodeCount}화 중 현재 ${startEpisode}~${endEpisode}화 구간입니다
+
         JSON 형식으로 응답해주세요:
         {
           "episodes": [
             {
               "episodeNumber": 숫자,
-              "title": "에피소드 제목",
-              "summary": "에피소드 요약 (3-4문장)",
+              "title": "에피소드 제목 (이전과 다른 새로운 제목)",
+              "summary": "에피소드 요약 (3-4문장, 새로운 내용)",
               "keyEvents": ["주요 사건1", "주요 사건2"],
               "emotionalArc": "exposition|rising|climax|falling|resolution",
               "endingHook": "다음 화 떡밥/궁금증 유발 요소",
