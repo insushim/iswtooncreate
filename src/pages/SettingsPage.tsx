@@ -4,12 +4,30 @@ import { motion } from 'framer-motion';
 import { Button, Input, Toggle, Slider, Card, Toast } from '@/components/common';
 import { useCostStore } from '@/stores';
 import { geminiService } from '@/services/gemini/GeminiService';
+import { useAuthStore } from '@/stores/authStore';
+import { saveFirebaseConfig, isFirebaseConfigured } from '@/services/firebase/config';
+import { SyncService } from '@/services/firebase/syncService';
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { settings, updateSettings } = useCostStore();
+  const { user, isLoading: authLoading, signInWithGoogle, signOut, initialize, checkConfiguration } = useAuthStore();
+
   const [apiKey, setApiKey] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Firebase config state
+  const [firebaseConfig, setFirebaseConfig] = useState({
+    apiKey: '',
+    authDomain: '',
+    projectId: '',
+    storageBucket: '',
+    messagingSenderId: '',
+    appId: '',
+  });
+  const [isFirebaseSetup, setIsFirebaseSetup] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [showFirebaseSetup, setShowFirebaseSetup] = useState(false);
 
   useEffect(() => {
     // localStorage에서 저장된 API 키 불러오기
@@ -17,7 +35,19 @@ const SettingsPage: React.FC = () => {
     if (savedKey) {
       setApiKey(savedKey);
     }
-  }, []);
+
+    // Firebase 설정 확인
+    setIsFirebaseSetup(isFirebaseConfigured());
+    initialize();
+
+    // 저장된 Firebase 설정 불러오기
+    const savedConfig = localStorage.getItem('firebase_config');
+    if (savedConfig) {
+      try {
+        setFirebaseConfig(JSON.parse(savedConfig));
+      } catch {}
+    }
+  }, [initialize]);
 
   const handleSave = () => {
     if (apiKey.trim()) {
@@ -25,6 +55,81 @@ const SettingsPage: React.FC = () => {
       setToast({ message: 'API 키가 저장되었습니다. 이제 AI 기능을 사용할 수 있습니다!', type: 'success' });
     } else {
       setToast({ message: '설정이 저장되었습니다', type: 'success' });
+    }
+  };
+
+  const handleSaveFirebaseConfig = () => {
+    if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+      setToast({ message: 'API Key와 Project ID는 필수입니다.', type: 'error' });
+      return;
+    }
+
+    const success = saveFirebaseConfig(firebaseConfig);
+    if (success) {
+      setIsFirebaseSetup(true);
+      setShowFirebaseSetup(false);
+      checkConfiguration();
+      setToast({ message: 'Firebase 설정이 저장되었습니다.', type: 'success' });
+    } else {
+      setToast({ message: 'Firebase 초기화에 실패했습니다. 설정을 확인해주세요.', type: 'error' });
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    await signInWithGoogle();
+    if (useAuthStore.getState().error) {
+      setToast({ message: useAuthStore.getState().error || '로그인 실패', type: 'error' });
+    } else {
+      setToast({ message: '로그인 성공!', type: 'success' });
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setToast({ message: '로그아웃되었습니다.', type: 'success' });
+  };
+
+  const handleSyncToCloud = async () => {
+    if (!user) {
+      setToast({ message: '먼저 로그인해주세요.', type: 'error' });
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const syncService = new SyncService(user.uid);
+      const result = await syncService.syncToCloud();
+      if (result.errors.length > 0) {
+        setToast({ message: `${result.uploaded}개 업로드, ${result.errors.length}개 실패`, type: 'error' });
+      } else {
+        setToast({ message: `${result.uploaded}개 프로젝트가 클라우드에 저장되었습니다.`, type: 'success' });
+      }
+    } catch (error: any) {
+      setToast({ message: error.message || '동기화 실패', type: 'error' });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSyncFromCloud = async () => {
+    if (!user) {
+      setToast({ message: '먼저 로그인해주세요.', type: 'error' });
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const syncService = new SyncService(user.uid);
+      const result = await syncService.syncFromCloud();
+      if (result.errors.length > 0) {
+        setToast({ message: `${result.downloaded}개 다운로드, ${result.errors.length}개 실패`, type: 'error' });
+      } else {
+        setToast({ message: `${result.downloaded}개 프로젝트를 불러왔습니다. 페이지를 새로고침해주세요.`, type: 'success' });
+      }
+    } catch (error: any) {
+      setToast({ message: error.message || '동기화 실패', type: 'error' });
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -75,6 +180,206 @@ const SettingsPage: React.FC = () => {
                 API 키는 브라우저 로컬에만 저장되며 외부로 전송되지 않습니다.
               </p>
             </div>
+          </Card>
+
+          {/* Cloud Sync Settings */}
+          <Card>
+            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+              </svg>
+              클라우드 동기화
+            </h2>
+
+            {!isFirebaseSetup ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                  <p className="text-yellow-400 font-medium mb-2">Firebase 설정 필요</p>
+                  <p className="text-sm text-gray-400 mb-3">
+                    클라우드 동기화를 사용하려면 Firebase 프로젝트가 필요합니다.
+                  </p>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowFirebaseSetup(!showFirebaseSetup)}
+                  >
+                    {showFirebaseSetup ? 'Firebase 설정 닫기' : 'Firebase 설정하기'}
+                  </Button>
+                </div>
+
+                {showFirebaseSetup && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="space-y-3"
+                  >
+                    <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg mb-4">
+                      <p className="text-sm text-blue-400 font-medium mb-1">Firebase 설정 방법:</p>
+                      <ol className="text-xs text-gray-400 list-decimal list-inside space-y-1">
+                        <li>Firebase Console (console.firebase.google.com) 접속</li>
+                        <li>새 프로젝트 생성 또는 기존 프로젝트 선택</li>
+                        <li>프로젝트 설정 → 일반 → 내 앱에서 웹 앱 추가</li>
+                        <li>firebaseConfig 값을 아래에 입력</li>
+                        <li>Authentication에서 Google 로그인 활성화</li>
+                        <li>Firestore Database 생성 (테스트 모드)</li>
+                      </ol>
+                    </div>
+
+                    <Input
+                      label="API Key"
+                      value={firebaseConfig.apiKey}
+                      onChange={(e) => setFirebaseConfig({ ...firebaseConfig, apiKey: e.target.value })}
+                      placeholder="AIzaSy..."
+                    />
+                    <Input
+                      label="Auth Domain"
+                      value={firebaseConfig.authDomain}
+                      onChange={(e) => setFirebaseConfig({ ...firebaseConfig, authDomain: e.target.value })}
+                      placeholder="your-app.firebaseapp.com"
+                    />
+                    <Input
+                      label="Project ID"
+                      value={firebaseConfig.projectId}
+                      onChange={(e) => setFirebaseConfig({ ...firebaseConfig, projectId: e.target.value })}
+                      placeholder="your-project-id"
+                    />
+                    <Input
+                      label="Storage Bucket"
+                      value={firebaseConfig.storageBucket}
+                      onChange={(e) => setFirebaseConfig({ ...firebaseConfig, storageBucket: e.target.value })}
+                      placeholder="your-app.appspot.com"
+                    />
+                    <Input
+                      label="Messaging Sender ID"
+                      value={firebaseConfig.messagingSenderId}
+                      onChange={(e) => setFirebaseConfig({ ...firebaseConfig, messagingSenderId: e.target.value })}
+                      placeholder="123456789"
+                    />
+                    <Input
+                      label="App ID"
+                      value={firebaseConfig.appId}
+                      onChange={(e) => setFirebaseConfig({ ...firebaseConfig, appId: e.target.value })}
+                      placeholder="1:123456789:web:abc123"
+                    />
+
+                    <Button variant="primary" onClick={handleSaveFirebaseConfig}>
+                      Firebase 설정 저장
+                    </Button>
+                  </motion.div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* User Status */}
+                <div className="p-4 bg-gray-700/50 rounded-lg">
+                  {user ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {user.photoURL && (
+                          <img
+                            src={user.photoURL}
+                            alt="Profile"
+                            className="w-10 h-10 rounded-full"
+                          />
+                        )}
+                        <div>
+                          <p className="text-white font-medium">{user.displayName}</p>
+                          <p className="text-gray-400 text-sm">{user.email}</p>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                        로그아웃
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <p className="text-gray-400">로그인하여 클라우드에 프로젝트를 저장하세요</p>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleGoogleSignIn}
+                        disabled={authLoading}
+                        loading={authLoading}
+                      >
+                        Google 로그인
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sync Buttons */}
+                {user && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={handleSyncToCloud}
+                      disabled={isSyncing}
+                      className="p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition-colors text-left disabled:opacity-50"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <span className="text-white font-medium">클라우드에 업로드</span>
+                      </div>
+                      <p className="text-gray-400 text-sm">로컬 프로젝트를 클라우드에 저장</p>
+                    </button>
+
+                    <button
+                      onClick={handleSyncFromCloud}
+                      disabled={isSyncing}
+                      className="p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition-colors text-left disabled:opacity-50"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                        </svg>
+                        <span className="text-white font-medium">클라우드에서 가져오기</span>
+                      </div>
+                      <p className="text-gray-400 text-sm">클라우드 프로젝트를 로컬로 복원</p>
+                    </button>
+                  </div>
+                )}
+
+                {isSyncing && (
+                  <div className="flex items-center justify-center gap-2 p-4">
+                    <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-gray-400">동기화 중...</span>
+                  </div>
+                )}
+
+                {/* Firebase Config Edit */}
+                <div className="pt-4 border-t border-gray-700">
+                  <button
+                    onClick={() => setShowFirebaseSetup(!showFirebaseSetup)}
+                    className="text-sm text-gray-500 hover:text-gray-400"
+                  >
+                    Firebase 설정 {showFirebaseSetup ? '닫기' : '수정'}
+                  </button>
+
+                  {showFirebaseSetup && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mt-4 space-y-3"
+                    >
+                      <Input
+                        label="API Key"
+                        value={firebaseConfig.apiKey}
+                        onChange={(e) => setFirebaseConfig({ ...firebaseConfig, apiKey: e.target.value })}
+                      />
+                      <Input
+                        label="Project ID"
+                        value={firebaseConfig.projectId}
+                        onChange={(e) => setFirebaseConfig({ ...firebaseConfig, projectId: e.target.value })}
+                      />
+                      <Button variant="secondary" size="sm" onClick={handleSaveFirebaseConfig}>
+                        설정 업데이트
+                      </Button>
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* Cost Settings */}
