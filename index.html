@@ -18,8 +18,10 @@
         var redirectPath = sessionStorage.getItem('redirectPath');
         if (redirectPath) {
           sessionStorage.removeItem('redirectPath');
-          // basename이 있으므로 그냥 앱 내부 경로만 사용
-          window.history.replaceState(null, '', redirectPath);
+          // basePath를 포함한 전체 경로로 설정
+          var basePath = '/iswtooncreate';
+          var fullPath = basePath + (redirectPath.startsWith('/') ? redirectPath : '/' + redirectPath);
+          window.history.replaceState(null, '', fullPath);
         }
       })();
     </script>

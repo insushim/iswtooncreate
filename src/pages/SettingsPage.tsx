@@ -34,6 +34,9 @@ const SettingsPage: React.FC = () => {
     const savedKey = geminiService.getApiKey();
     if (savedKey) {
       setApiKey(savedKey);
+    } else {
+      // 기본 API 키가 있으면 표시 (마스킹)
+      setApiKey('••••••••••••••••••••••••••••••••••••••••');
     }
 
     // Firebase 설정 확인
@@ -165,7 +168,11 @@ const SettingsPage: React.FC = () => {
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="AIza..."
-                helperText="Google AI Studio (aistudio.google.com)에서 무료로 API 키를 발급받으세요"
+                helperText={
+                  !geminiService.getApiKey()
+                    ? "✅ 기본 API 키 사용 중 (별도 설정 불필요)"
+                    : "Google AI Studio (aistudio.google.com)에서 무료로 API 키를 발급받으세요"
+                }
               />
               <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                 <p className="text-sm text-blue-400 font-medium mb-1">API 키 발급 방법:</p>
