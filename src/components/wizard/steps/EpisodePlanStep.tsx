@@ -74,8 +74,13 @@ export const EpisodePlanStep: React.FC<EpisodePlanStepProps> = ({
       });
 
       const result = parseJsonResponse(response);
+      // AI가 반환한 episodeNumber를 실제 시작 번호 기준으로 재할당
+      const correctedEpisodes = result.episodes.map((ep: any, idx: number) => ({
+        ...ep,
+        episodeNumber: startEpisode + idx,
+      }));
       updateData({
-        episodePlans: [...data.episodePlans, ...result.episodes],
+        episodePlans: [...data.episodePlans, ...correctedEpisodes],
       });
     } catch (err) {
       console.error('Episode plan generation failed:', err);
