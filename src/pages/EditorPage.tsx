@@ -89,7 +89,13 @@ const EditorPage: React.FC = () => {
         useCache: false,
       });
 
+      // 디버깅: AI 원본 응답 확인
+      console.log('[AI Response Raw]:', response);
+
       const result = parseJsonResponse(response);
+
+      // 디버깅: 파싱된 결과 확인
+      console.log('[Parsed Result]:', JSON.stringify(result, null, 2));
 
       if (!result.panels || result.panels.length === 0) {
         throw new Error('패널이 생성되지 않았습니다.');
@@ -97,13 +103,16 @@ const EditorPage: React.FC = () => {
 
       // 패널 추가
       for (const panelData of result.panels) {
+        // 디버깅: 각 패널 데이터 확인
+        console.log('[Panel Data]:', JSON.stringify(panelData, null, 2));
+
         const panelNum = panelData.n || panelData.panelNumber || 1;
         const imgDesc = panelData.img || panelData.sceneDescription || '';
-        // dialog 필드에서 대사 가져오기 (talk, dialog, dialogue 모두 체크)
-        let dialogue = panelData.dialog ?? panelData.dialogue ?? panelData.talk ?? '';
+        // dialog 필드에서 대사 가져오기 (talk, dialog, dialogue, speech 모두 체크)
+        let dialogue = panelData.dialog ?? panelData.dialogue ?? panelData.talk ?? panelData.speech ?? panelData.text ?? '';
 
         // 디버깅: 원본 대사 확인
-        console.log(`[Panel ${panelNum}] Original dialog:`, dialogue);
+        console.log(`[Panel ${panelNum}] Dialog field:`, panelData.dialog, '| Dialogue field:', panelData.dialogue, '| Final:', dialogue);
 
         // 대사가 영어 장면설명처럼 보이면 제거 (한국어 대사는 유지)
         // 영어가 주를 이루는 경우만 제거 (한국어 포함 시 유지)

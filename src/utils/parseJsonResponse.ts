@@ -92,7 +92,7 @@ function repairAndParseJson<T>(jsonStr: string): T {
     return JSON.parse(repaired);
   } catch (e) {
     // 3단계: 더 공격적인 복구 - 배열 내 완전한 객체들만 추출
-    const arrayMatch = repaired.match(/"(characters|episodes|acts)":\s*\[/);
+    const arrayMatch = repaired.match(/"(characters|episodes|acts|panels)":\s*\[/);
     if (arrayMatch) {
       const key = arrayMatch[1];
       const arrayStart = repaired.indexOf(arrayMatch[0]);
@@ -109,7 +109,7 @@ function repairAndParseJson<T>(jsonStr: string): T {
     }
 
     // 4단계: 마지막 완전한 배열 항목 찾기 (기존 로직)
-    const match = repaired.match(/^(\{[\s\S]*"(?:characters|episodes|acts)":\s*\[[\s\S]*\})\s*,?\s*(?:\{[^}]*)?$/);
+    const match = repaired.match(/^(\{[\s\S]*"(?:characters|episodes|acts|panels)":\s*\[[\s\S]*\})\s*,?\s*(?:\{[^}]*)?$/);
     if (match) {
       try {
         let partial = match[1];
