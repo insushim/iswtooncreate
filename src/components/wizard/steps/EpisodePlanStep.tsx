@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, LoadingSpinner, TextArea, Badge } from '@/components/common';
 import { geminiService } from '@/services/gemini/GeminiService';
@@ -23,8 +23,17 @@ export const EpisodePlanStep: React.FC<EpisodePlanStepProps> = ({
   const [selectedEpisode, setSelectedEpisode] = useState<number | null>(null);
   const [generateCount, setGenerateCount] = useState(5);
 
+  // ref를 사용하여 항상 최신 data를 참조
+  const dataRef = useRef(data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
   const generateEpisodePlans = async () => {
-    if (!data.storyStructure) {
+    // ref에서 최신 data 가져오기
+    const currentData = dataRef.current;
+
+    if (!currentData.storyStructure) {
       setError('먼저 스토리 구조를 생성해주세요.');
       return;
     }
@@ -33,49 +42,69 @@ export const EpisodePlanStep: React.FC<EpisodePlanStepProps> = ({
     setError(null);
 
     try {
-      const startEpisode = data.episodePlans.length + 1;
-      const endEpisode = Math.min(startEpisode + generateCount - 1, data.episodeCount);
+      // 현재 에피소드 수 기반으로 시작점 계산
+      const currentEpisodeCount = currentData.episodePlans.length;
+      const startEpisode = currentEpisodeCount + 1;
+      const endEpisode = Math.min(startEpisode + generateCount - 1, currentData.episodeCount);
+      const episodeCountToGenerate = endEpisode - startEpisode + 1;
+
+      console.log(`[EpisodePlan] Current episodes: ${currentEpisodeCount}, Generating: ${startEpisode}~${endEpisode}`);
 
       // 이전 에피소드 제목들 (중복 방지용)
-      const existingTitles = data.episodePlans.map(ep => ep.title);
-      const lastEpisode = data.episodePlans[data.episodePlans.length - 1];
+      const existingTitles = currentData.episodePlans.map(ep => ep.title);
+      const lastEpisode = currentData.episodePlans[currentData.episodePlans.length - 1];
 
-      const prompt = `웹툰 "${data.title}" (${data.genre})의 에피소드 ${startEpisode}~${endEpisode}화를 작성하세요.
+      // 이미 모든 에피소드가 생성된 경우
+      if (startEpisode > currentData.episodeCount) {
+        setError('모든 에피소드가 이미 생성되었습니다.');
+        setIsGenerating(false);
+        return;
+      }
 
-시놉시스: ${data.planning?.synopsis}
-캐릭터: ${data.characters.map(c => c.name).join(', ')}
+      const prompt = `웹툰 "${currentData.title}"의 에피소드 ${startEpisode}~${endEpisode}화 (총 ${episodeCountToGenerate}개) 생성.
 
-${data.episodePlans.length > 0 ? `
-[중요] 이미 작성된 에피소드 (${data.episodePlans.length}화까지 완료):
-${data.episodePlans.slice(-3).map(ep => `- ${ep.episodeNumber}화 "${ep.title}": ${ep.summary}`).join('\n')}
+시놉시스: ${currentData.planning?.synopsis}
+캐릭터: ${currentData.characters.map(c => c.name).join(', ')}
+${currentData.episodePlans.length > 0 ? `
+이전화(${lastEpisode.episodeNumber}화) 엔딩: "${lastEpisode.endingHook}"
+사용된 제목(재사용금지): ${existingTitles.slice(-5).join(', ')}
+` : '첫 에피소드입니다.'}
 
-마지막 ${lastEpisode.episodeNumber}화 엔딩: "${lastEpisode.endingHook}"
+중요: JSON만 출력. 설명 없이 바로 { 로 시작.
+반드시 ${episodeCountToGenerate}개 에피소드 생성. episodeNumber: ${startEpisode}부터 ${endEpisode}까지.
 
-[절대 금지] 다음 제목들은 이미 사용됨 - 절대 재사용하지 마세요:
-${existingTitles.join(', ')}
+{"episodes":[
+  {"episodeNumber":${startEpisode},"title":"제목","summary":"요약(50자이내)","keyEvents":["사건1","사건2"],"emotionalArc":"rising","endingHook":"다음화떡밥(30자이내)","characters":["캐릭터"],"locations":["장소"]}
+]}
 
-${startEpisode}화는 ${lastEpisode.episodeNumber}화의 엔딩("${lastEpisode.endingHook}")에서 이어져야 합니다.
-` : '1화부터 시작합니다.'}
-
-반드시 ${startEpisode}화부터 ${endEpisode}화까지 ${endEpisode - startEpisode + 1}개 에피소드를 생성하세요.
-episodeNumber는 반드시 ${startEpisode}, ${startEpisode + 1}, ... ${endEpisode} 순서로 작성하세요.
-
-JSON만 출력:
-{"episodes":[{"episodeNumber":${startEpisode},"title":"새로운제목","summary":"요약","keyEvents":["사건1"],"emotionalArc":"rising","endingHook":"다음화떡밥","characters":["캐릭터"],"locations":["장소"]}]}`;
+emotionalArc값: exposition/rising/climax/falling/resolution
+summary와 endingHook은 간결하게 작성.`;
 
       const response = await geminiService.generateText(prompt, {
-        temperature: 0.7,
-        maxTokens: 8192,
+        temperature: 0.8,
+        maxTokens: 16000,
+        useCache: false,  // 에피소드 생성은 항상 새로 생성
       });
 
       const result = parseJsonResponse(response);
+
+      // 에피소드가 생성되었는지 확인
+      if (!result.episodes || result.episodes.length === 0) {
+        throw new Error('에피소드가 생성되지 않았습니다.');
+      }
+
       // AI가 반환한 episodeNumber를 실제 시작 번호 기준으로 재할당
       const correctedEpisodes = result.episodes.map((ep: any, idx: number) => ({
         ...ep,
         episodeNumber: startEpisode + idx,
       }));
+
+      console.log(`[EpisodePlan] Generated ${correctedEpisodes.length} episodes (${startEpisode}~${startEpisode + correctedEpisodes.length - 1})`);
+
+      // 최신 데이터를 다시 가져와서 병합
+      const latestData = dataRef.current;
       updateData({
-        episodePlans: [...data.episodePlans, ...correctedEpisodes],
+        episodePlans: [...latestData.episodePlans, ...correctedEpisodes],
       });
     } catch (err) {
       console.error('Episode plan generation failed:', err);

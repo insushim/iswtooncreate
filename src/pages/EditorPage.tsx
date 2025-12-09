@@ -4,14 +4,17 @@ import { motion } from 'framer-motion';
 import { EditorToolbar, PanelEditor, Timeline } from '@/components/editor';
 import { Button, LoadingSpinner, Tabs, Card } from '@/components/common';
 import { useProjectStore, useUIStore } from '@/stores';
+import { geminiService } from '@/services/gemini/GeminiService';
+import { parseJsonResponse } from '@/utils/parseJsonResponse';
 import type { Panel } from '@/types';
 
 const EditorPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { currentProject, setCurrentProject, updatePanel } = useProjectStore();
+  const { currentProject, setCurrentProject, updatePanel, addPanel, deletePanel } = useProjectStore();
   const { selectedEpisodeId, setSelectedEpisode, selectedPanelId, setSelectedPanel, addToast } = useUIStore();
   const [isLoading, setIsLoading] = useState(true);
+  const [isGeneratingPanels, setIsGeneratingPanels] = useState(false);
 
   useEffect(() => {
     const loadProject = async () => {
@@ -38,6 +41,153 @@ const EditorPage: React.FC = () => {
       await updatePanel(selectedEpisodeId, panelId, updates);
       addToast({ message: '패널이 업데이트되었습니다', type: 'success' });
     }
+  };
+
+  // AI 패널 자동 생성
+  const generatePanelsForEpisode = async () => {
+    if (!currentEpisode || !currentProject) return;
+
+    setIsGeneratingPanels(true);
+    addToast({ message: '패널을 생성하고 있습니다...', type: 'info' });
+
+    try {
+      // 세계관 정보
+      const worldInfo = currentProject.worldBuilding;
+      const eraInfo = worldInfo?.era || '고대 한국';
+      const settingInfo = worldInfo?.setting || '역사물';
+
+      const prompt = `웹툰 ${currentEpisode.episodeNumber}화 콘티. JSON으로 패널 10개.
+
+줄거리: ${currentEpisode.summary}
+세계관: ${eraInfo}, ${settingInfo}
+
+출력형식:
+{"panels":[
+{"n":1,"img":"영어로 그림설명","dialog":"한국어 대사"},
+{"n":2,"img":"영어로 그림설명","dialog":""}
+]}
+
+예시 (환생/빙의물의 경우):
+{"panels":[
+{"n":1,"img":"modern Korean office, exhausted young woman at desk, late night, computer screen glowing, contemporary setting","dialog":"아... 피곤해. 더는 못 버티겠어..."},
+{"n":2,"img":"woman collapsing on desk, passing out, modern office background","dialog":""},
+{"n":3,"img":"bright light, transition scene, swirling effect","dialog":""},
+{"n":4,"img":"ancient Korean palace bedroom, woman waking up on wooden bed, confused expression, traditional hanbok, oil lamps, Goguryeo era","dialog":"...어디야 여기?"},
+{"n":5,"img":"close up of woman's face looking at her hands, shocked expression, ancient Korean room","dialog":"이 손은... 내 손이 아니야!"}
+]}
+
+규칙:
+1. img = 영어로만! 그림 설명
+2. dialog = 한국어 대사. 캐릭터가 실제로 말하는 것만!
+3. dialog에 장면설명 절대 넣지마
+4. 대사 없는 장면은 dialog를 빈칸 ""으로
+5. 환생/빙의 스토리면 처음은 현대, 중간에 고대로 전환`;
+
+      const response = await geminiService.generateText(prompt, {
+        temperature: 0.8,
+        maxTokens: 8000,
+        useCache: false,
+      });
+
+      const result = parseJsonResponse(response);
+
+      if (!result.panels || result.panels.length === 0) {
+        throw new Error('패널이 생성되지 않았습니다.');
+      }
+
+      // 패널 추가
+      for (const panelData of result.panels) {
+        const panelNum = panelData.n || panelData.panelNumber || 1;
+        const imgDesc = panelData.img || panelData.sceneDescription || '';
+        // dialog 필드에서 대사 가져오기 (talk, dialog, dialogue 모두 체크)
+        let dialogue = panelData.dialog ?? panelData.dialogue ?? panelData.talk ?? '';
+
+        // 디버깅: 원본 대사 확인
+        console.log(`[Panel ${panelNum}] Original dialog:`, dialogue);
+
+        // 대사가 영어 장면설명처럼 보이면 제거 (한국어 대사는 유지)
+        // 영어가 주를 이루는 경우만 제거 (한국어 포함 시 유지)
+        const hasKorean = /[가-힣]/.test(dialogue);
+        const isEnglishDescription = !hasKorean && /^[a-zA-Z\s,.\-'":;!?]+$/.test(dialogue);
+        if (dialogue && isEnglishDescription) {
+          console.log(`[Panel ${panelNum}] Filtered out English description:`, dialogue);
+          dialogue = '';
+        }
+        const charName = panelData.who || panelData.character || '';
+
+        const panel: Omit<Panel, 'id'> = {
+          episodeId: currentEpisode.id,
+          panelNumber: panelNum,
+          size: 'medium',
+          cameraAngle: 'medium-shot',
+          composition: imgDesc,
+          characters: charName ? [{
+            characterId: '',
+            characterName: charName,
+            position: { x: 50, y: 50 },
+            scale: 1,
+            expression: 'neutral',
+            pose: 'standing',
+            action: '',
+            facing: 'front',
+            layer: 1,
+          }] : [],
+          background: {
+            locationName: '',
+            description: imgDesc,
+            timeOfDay: 'afternoon',
+            weather: '',
+            mood: '',
+            focusPoint: '',
+            depth: 'medium',
+          },
+          dialogues: dialogue ? [{
+            id: `dlg-${Date.now()}-${panelNum}`,
+            text: dialogue,
+            type: 'speech',
+            bubbleStyle: 'normal',
+            position: { x: 50, y: 20 },
+            size: { width: 200, height: 80 },
+            fontSize: 'medium',
+          }] : [],
+          sfx: [],
+          mood: '',
+          lighting: 'natural',
+          visualPrompt: imgDesc,
+          status: 'pending',
+        };
+
+        await addPanel(currentEpisode.id, panel);
+      }
+
+      // 프로젝트 다시 로드
+      await setCurrentProject(projectId!);
+
+      addToast({ message: `${result.panels.length}개 패널이 생성되었습니다!`, type: 'success' });
+    } catch (err) {
+      console.error('Panel generation failed:', err);
+      addToast({ message: '패널 생성에 실패했습니다. 다시 시도해주세요.', type: 'error' });
+    } finally {
+      setIsGeneratingPanels(false);
+    }
+  };
+
+  // 패널 삭제
+  const handleDeletePanel = async (panelId: string) => {
+    if (!selectedEpisodeId) return;
+    await deletePanel(selectedEpisodeId, panelId);
+    setSelectedPanel(null);
+    addToast({ message: '패널이 삭제되었습니다', type: 'success' });
+  };
+
+  // 전체 패널 삭제
+  const handleDeleteAllPanels = async () => {
+    if (!currentEpisode) return;
+    for (const panel of currentEpisode.panels) {
+      await deletePanel(currentEpisode.id, panel.id);
+    }
+    setSelectedPanel(null);
+    addToast({ message: '모든 패널이 삭제되었습니다', type: 'success' });
   };
 
   if (isLoading) {
@@ -155,6 +305,8 @@ const EditorPage: React.FC = () => {
                 panels={currentEpisode.panels}
                 selectedPanelId={selectedPanelId}
                 onSelectPanel={setSelectedPanel}
+                onDeletePanel={handleDeletePanel}
+                onDeleteAllPanels={handleDeleteAllPanels}
               />
 
               {/* Panel Editor */}
@@ -169,9 +321,24 @@ const EditorPage: React.FC = () => {
                   <Card className="flex items-center justify-center h-full">
                     <div className="text-center">
                       <span className="text-4xl mb-4 block">🎬</span>
-                      <p className="text-gray-400">패널을 선택하거나 새로 추가하세요</p>
-                      <Button variant="primary" className="mt-4">
-                        새 패널 추가
+                      <p className="text-gray-400 mb-2">
+                        {currentEpisode.panels.length === 0
+                          ? '이 에피소드에 패널이 없습니다'
+                          : '패널을 선택하거나 새로 추가하세요'}
+                      </p>
+                      {currentEpisode.panels.length === 0 && (
+                        <p className="text-gray-500 text-sm mb-4">
+                          AI가 에피소드 내용을 기반으로 패널을 자동 생성합니다
+                        </p>
+                      )}
+                      <Button
+                        variant="primary"
+                        className="mt-4"
+                        onClick={generatePanelsForEpisode}
+                        disabled={isGeneratingPanels}
+                        loading={isGeneratingPanels}
+                      >
+                        {isGeneratingPanels ? 'AI 패널 생성 중...' : 'AI 패널 자동 생성'}
                       </Button>
                     </div>
                   </Card>

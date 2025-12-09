@@ -49,24 +49,34 @@ export const CharacterStep: React.FC<CharacterStepProps> = ({
       // 회차에 따라 캐릭터 수 조절
       const characterCount = data.episodeCount <= 20 ? 5 : data.episodeCount <= 50 ? 7 : 10;
 
-      const prompt = `웹툰 "${data.title}" (${data.genre})의 캐릭터 ${characterCount}명을 JSON으로 생성해주세요.
+      const prompt = `웹툰 "${data.title}" (${data.genre})의 캐릭터 ${characterCount}명을 JSON으로 생성.
 
 시놉시스: ${data.planning.synopsis}
-총 회차: ${data.episodeCount}화
 
-반드시 아래 JSON 형식만 출력하세요. 다른 텍스트 없이 JSON만 출력:
-{"characters":[{"name":"이름","koreanName":"한국이름","role":"protagonist","age":20,"gender":"male","personality":["성격1","성격2"],"appearance":{"height":"175cm","hairColor":"검정","hairStyle":"단발","eyeColor":"갈색"},"backstory":"배경스토리","motivation":"동기","arc":"성장방향"}]}
+중요: JSON만 출력. 설명 없이 바로 { 로 시작.
 
-role: protagonist(주인공)/antagonist(적대자)/supporting(조연)/minor(단역)
-gender: male/female
-구성: 주인공 1-2명, 적대자 1-2명, 조연 ${Math.max(2, characterCount - 4)}명, 단역 1-2명`;
+{"characters":[
+  {"name":"이름","koreanName":"한글이름","role":"protagonist","age":20,"gender":"male","personality":["성격1","성격2"],"appearance":{"height":"175cm","hairColor":"검정","hairStyle":"단발","eyeColor":"갈색"},"backstory":"배경(50자이내)","motivation":"동기(30자이내)","arc":"성장(30자이내)"}
+]}
+
+role값: protagonist/antagonist/supporting/minor
+gender값: male/female
+필수구성: 주인공1-2, 적대자1-2, 조연${Math.max(2, characterCount - 4)}, 단역1-2
+총 ${characterCount}명 생성. backstory,motivation,arc는 간결하게.`;
 
       const response = await geminiService.generateText(prompt, {
-        temperature: 0.7,
-        maxTokens: 8192,
+        temperature: 0.8,
+        maxTokens: 12000,
+        useCache: false,  // 캐릭터 생성은 항상 새로 생성
       });
 
       const result = parseJsonResponse(response);
+
+      // 캐릭터가 충분히 생성되었는지 확인
+      if (!result.characters || result.characters.length === 0) {
+        throw new Error('캐릭터가 생성되지 않았습니다.');
+      }
+
       updateData({ characters: result.characters });
     } catch (err) {
       console.error('Character generation failed:', err);

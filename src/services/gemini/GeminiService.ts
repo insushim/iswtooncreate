@@ -288,30 +288,16 @@ class GeminiServiceClass {
 
   private buildImagePrompt(
     basePrompt: string,
-    styleAnchor: string,
+    _styleAnchor: string,
     resolution: 'preview' | 'standard' | 'high'
   ): string {
     const qualityModifier = {
-      preview: 'sketch quality, rough draft',
-      standard: 'clean linework, professional quality',
-      high: 'highly detailed, masterpiece quality, 4K resolution',
+      preview: '',
+      standard: 'high quality, ',
+      high: 'masterpiece quality, highly detailed, ',
     }[resolution];
 
-    return `
-      ${styleAnchor}
-
-      ${qualityModifier}
-
-      Scene:
-      ${basePrompt}
-
-      Style requirements:
-      - Webtoon/manhwa art style
-      - Vertical scroll optimized
-      - No text or speech bubbles in image
-      - Consistent character proportions
-      - Clean, professional finish
-    `.trim();
+    return `${qualityModifier}${basePrompt}`.trim();
   }
 
   private getDefaultSystemPrompt(): string {

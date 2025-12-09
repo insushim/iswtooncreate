@@ -19,6 +19,12 @@ export function parseJsonResponse<T = any>(response: string): T {
 
   jsonStr = jsonStr.trim();
 
+  // JSON 시작점 찾기 (앞에 불필요한 텍스트가 있을 수 있음)
+  const jsonStartIndex = jsonStr.indexOf('{');
+  if (jsonStartIndex > 0) {
+    jsonStr = jsonStr.slice(jsonStartIndex);
+  }
+
   // 먼저 정상 파싱 시도
   try {
     return JSON.parse(jsonStr);
@@ -35,33 +41,14 @@ export function parseJsonResponse<T = any>(response: string): T {
 function repairAndParseJson<T>(jsonStr: string): T {
   let repaired = jsonStr;
 
-  // 끝에 있는 불완전한 문자열 제거
-  // 예: "text": "some incomplete 로 끝나는 경우
-  const lastQuoteIndex = repaired.lastIndexOf('"');
-  const lastColonIndex = repaired.lastIndexOf(':');
-
-  // 마지막 완전한 속성을 찾기
-  if (lastQuoteIndex > lastColonIndex) {
-    // 문자열 값이 불완전할 수 있음
-    const beforeQuote = repaired.substring(0, lastQuoteIndex);
-    const secondLastQuote = beforeQuote.lastIndexOf('"');
-
-    // 키-값 쌍에서 값이 시작되었는지 확인
-    const colonAfterKey = beforeQuote.lastIndexOf(':');
-    if (colonAfterKey > secondLastQuote) {
-      // 불완전한 문자열 값, 이전 완전한 항목까지 자르기
-      const lastCompleteComma = beforeQuote.lastIndexOf(',');
-      const lastOpenBrace = beforeQuote.lastIndexOf('{');
-      const lastOpenBracket = beforeQuote.lastIndexOf('[');
-
-      const cutPoint = Math.max(lastCompleteComma, lastOpenBrace, lastOpenBracket);
-      if (cutPoint > 0) {
-        repaired = repaired.substring(0, cutPoint + 1);
-      }
-    }
+  // 1단계: 마지막 완전한 객체를 찾아서 자르기
+  // 배열 내 객체들 중 마지막으로 완전히 닫힌 객체까지만 사용
+  const lastCompleteObjectEnd = findLastCompleteObjectInArray(repaired);
+  if (lastCompleteObjectEnd > 0) {
+    repaired = repaired.substring(0, lastCompleteObjectEnd);
   }
 
-  // 열린 괄호 카운트
+  // 2단계: 열린 괄호 카운트
   let openBraces = 0;
   let openBrackets = 0;
   let inString = false;
@@ -104,11 +91,27 @@ function repairAndParseJson<T>(jsonStr: string): T {
   try {
     return JSON.parse(repaired);
   } catch (e) {
-    // 더 공격적인 복구: 마지막 완전한 배열 항목 찾기
+    // 3단계: 더 공격적인 복구 - 배열 내 완전한 객체들만 추출
+    const arrayMatch = repaired.match(/"(characters|episodes|acts)":\s*\[/);
+    if (arrayMatch) {
+      const key = arrayMatch[1];
+      const arrayStart = repaired.indexOf(arrayMatch[0]);
+      const bracketStart = repaired.indexOf('[', arrayStart);
+
+      // 완전한 객체들만 추출
+      const objects = extractCompleteObjects(repaired.substring(bracketStart + 1));
+      if (objects.length > 0) {
+        const reconstructed = `{"${key}":[${objects.join(',')}]}`;
+        try {
+          return JSON.parse(reconstructed);
+        } catch {}
+      }
+    }
+
+    // 4단계: 마지막 완전한 배열 항목 찾기 (기존 로직)
     const match = repaired.match(/^(\{[\s\S]*"(?:characters|episodes|acts)":\s*\[[\s\S]*\})\s*,?\s*(?:\{[^}]*)?$/);
     if (match) {
       try {
-        // 배열을 닫고 객체를 닫기
         let partial = match[1];
         if (!partial.endsWith(']')) partial += ']';
         if (!partial.endsWith('}')) partial += '}';
@@ -119,4 +122,105 @@ function repairAndParseJson<T>(jsonStr: string): T {
     // 최후의 수단: 원래 오류 던지기
     throw new Error(`JSON 파싱 실패: AI 응답이 불완전합니다. 다시 시도해주세요.`);
   }
+}
+
+/**
+ * 배열 내에서 마지막으로 완전히 닫힌 객체의 끝 위치를 찾습니다.
+ */
+function findLastCompleteObjectInArray(jsonStr: string): number {
+  let lastCompleteEnd = -1;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let inArray = false;
+  let objectStart = -1;
+
+  for (let i = 0; i < jsonStr.length; i++) {
+    const char = jsonStr[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (char === '\\') {
+      escape = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+
+    if (char === '[') {
+      inArray = true;
+    } else if (char === '{') {
+      if (inArray && depth === 1) {
+        objectStart = i;
+      }
+      depth++;
+    } else if (char === '}') {
+      depth--;
+      if (inArray && depth === 1 && objectStart !== -1) {
+        lastCompleteEnd = i + 1;
+      }
+    } else if (char === ']') {
+      if (depth === 1) {
+        inArray = false;
+      }
+    }
+  }
+
+  return lastCompleteEnd;
+}
+
+/**
+ * 문자열에서 완전한 JSON 객체들을 추출합니다.
+ */
+function extractCompleteObjects(str: string): string[] {
+  const objects: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (char === '\\') {
+      escape = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+
+    if (char === '{') {
+      if (depth === 0) {
+        start = i;
+      }
+      depth++;
+    } else if (char === '}') {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        const obj = str.substring(start, i + 1);
+        // 유효한 JSON인지 확인
+        try {
+          JSON.parse(obj);
+          objects.push(obj);
+        } catch {
+          // 불완전한 객체는 무시
+        }
+        start = -1;
+      }
+    }
+  }
+
+  return objects;
 }

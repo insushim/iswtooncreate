@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button, LoadingSpinner, Dropdown, TextArea } from '@/components/common';
+import { Button, LoadingSpinner, Dropdown } from '@/components/common';
 import { geminiService } from '@/services/gemini/GeminiService';
 import type { Panel, PanelSize, CameraAngle } from '@/types';
 import { useProjectStore, useUIStore } from '@/stores';
@@ -40,6 +40,7 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState('');
   const { currentProject } = useProjectStore();
   const { addToast } = useUIStore();
 
@@ -49,31 +50,74 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
     setIsGenerating(true);
 
     try {
-      // Build prompt from panel data
-      const characterDescriptions = panel.characters
-        .map((c) => `${c.characterName}: ${c.expression} expression, ${c.pose} pose, facing ${c.facing}`)
-        .join('; ');
+      // 장면 설명 (영어만 사용)
+      const sceneDesc = panel.composition || panel.background?.description || '';
 
-      const prompt = `
-        ${panel.composition}
-        Characters: ${characterDescriptions}
-        Background: ${panel.background.description}, ${panel.background.timeOfDay}, ${panel.background.weather}
-        Mood: ${panel.mood}
-        Lighting: ${panel.lighting}
-        Camera: ${panel.cameraAngle}
-      `.trim();
+      // 장면 설명에서 현대/고대 배경 자동 감지
+      const isModernScene = /modern|office|computer|contemporary|apartment|city|urban|smartphone|laptop|desk|cubicle/i.test(sceneDesc);
 
-      // Get reference images for character consistency
-      const referenceImages = currentProject.characters
-        .filter((c) => panel.characters.some((pc) => pc.characterId === c.id))
-        .flatMap((c) => c.referenceImages.filter((r) => r.type === 'anchor').map((r) => r.imageData))
-        .slice(0, 3);
+      // 세계관/시대 배경 가져오기 (장면 설명이 우선)
+      const worldSetting = currentProject.worldBuilding;
+      const era = worldSetting?.era || 'ancient';
+
+      // 장면 설명에 따라 배경 스타일 결정 (장면 설명이 세계관보다 우선)
+      let eraStyle = '';
+      if (isModernScene) {
+        eraStyle = 'modern contemporary Korean setting, current day';
+      } else if (era.includes('철기') || era.includes('고구려') || era.includes('ancient')) {
+        eraStyle = 'ancient Korean Three Kingdoms period, traditional hanok, wooden architecture, oil lamps, no modern elements';
+      }
+
+      // 패널에 등장하는 캐릭터의 상세 정보 가져오기 (영어로)
+      const characterDetails = panel.characters.map((pc) => {
+        const fullCharacter = currentProject.characters.find(
+          (c) => c.name === pc.characterName || c.koreanName === pc.characterName
+        );
+        if (fullCharacter) {
+          const gender = fullCharacter.gender === 'female' ? 'beautiful young Korean woman' :
+                        fullCharacter.gender === 'male' ? 'handsome young Korean man' : 'Korean person';
+          const age = fullCharacter.age || 25;
+          const hairColor = fullCharacter.appearance?.hairColor || 'black';
+          const hairStyle = fullCharacter.appearance?.hairStyle || 'long';
+          const eyeColor = fullCharacter.appearance?.eyeColor || 'dark brown';
+          const bodyType = fullCharacter.appearance?.bodyType || 'slim';
+          const height = fullCharacter.appearance?.height || '';
+          const features = fullCharacter.appearance?.distinguishingFeatures?.join(', ') || '';
+
+          // 현대 장면이면 현대 복장, 아니면 한복
+          const clothing = isModernScene
+            ? 'modern Korean office attire, business casual'
+            : 'traditional ancient Korean hanbok, silk robes';
+
+          return `${fullCharacter.name}: ${gender}, ${age} years old, ${hairColor} ${hairStyle} hair, ${eyeColor} eyes, ${bodyType} body, wearing ${clothing}${height ? `, ${height}` : ''}${features ? `, ${features}` : ''}`;
+        }
+        return isModernScene ? 'Korean person in modern clothing' : 'Korean person in traditional hanbok';
+      }).join('; ');
+
+      // 피드백이 있으면 반영
+      const feedbackText = feedback ? `\n\nUser feedback to apply: ${feedback}` : '';
+
+      // 웹툰 스타일 이미지 생성용 프롬프트 (장면 설명 그대로 사용)
+      const prompt = `Korean webtoon manhwa illustration:
+
+Scene: ${sceneDesc}
+
+${characterDetails ? `Character: ${characterDetails}` : ''}
+
+${eraStyle ? `Setting: ${eraStyle}` : ''}${feedbackText}
+
+Art style: Korean webtoon manhwa style, clean anime lineart, soft cel shading, ${panel.cameraAngle || 'medium'} shot, professional quality, spacious composition.
+
+RULES:
+- NO TEXT in image
+- NO SPEECH BUBBLES
+- Follow the scene description exactly`;
 
       const result = await geminiService.generateImage(prompt, {
         resolution,
-        styleAnchor: currentProject.styleGuide.anchorPrompt,
-        referenceImages,
-        useCache: true,
+        styleAnchor: '',
+        referenceImages: [],
+        useCache: false,
       });
 
       if (resolution === 'preview') {
@@ -127,172 +171,167 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
     }
   };
 
+  // 대사 텍스트
+  const dialogueText = panel.dialogues?.[0]?.text || '';
+
   return (
     <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden">
       {/* Panel Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-700">
+      <div className="flex items-center justify-between p-3 border-b border-gray-700">
         <div className="flex items-center gap-3">
-          <span className="text-2xl font-bold text-purple-400">#{panel.panelNumber}</span>
-          <span className={`px-2 py-1 rounded text-xs font-medium ${
-            panel.status === 'approved' ? 'bg-green-500/20 text-green-400' :
-            panel.status === 'preview' ? 'bg-yellow-500/20 text-yellow-400' :
-            panel.status === 'regenerating' ? 'bg-blue-500/20 text-blue-400' :
-            'bg-gray-500/20 text-gray-400'
-          }`}>
-            {panel.status === 'approved' ? '승인됨' :
-             panel.status === 'preview' ? '프리뷰' :
-             panel.status === 'regenerating' ? '재생성 중' : '대기'}
-          </span>
+          <span className="text-xl font-bold text-purple-400">#{panel.panelNumber}</span>
+          {panel.characters?.[0]?.characterName && (
+            <span className="text-sm text-gray-300">{panel.characters[0].characterName}</span>
+          )}
         </div>
-        <div className="flex gap-2">
-          <Dropdown
-            options={panelSizes}
-            value={panel.size}
-            onChange={(value) => onUpdate({ size: value as PanelSize })}
-            placeholder="크기"
-          />
-        </div>
+        <Dropdown
+          options={panelSizes}
+          value={panel.size}
+          onChange={(value) => onUpdate({ size: value as PanelSize })}
+          placeholder="크기"
+        />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 p-4">
-        {/* Image Preview */}
-        <div className="aspect-[3/4] bg-gray-900 rounded-lg overflow-hidden relative">
-          <AnimatePresence mode="wait">
-            {isGenerating ? (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                <div className="text-center">
-                  <LoadingSpinner size="lg" className="mx-auto mb-2" />
-                  <p className="text-gray-400 text-sm">이미지 생성 중...</p>
-                </div>
-              </motion.div>
-            ) : previewImage ? (
-              <motion.img
-                key="preview"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                src={previewImage}
-                alt="Preview"
-                className="w-full h-full object-cover"
+      {/* Main Content - 더 넓은 레이아웃 */}
+      <div className="p-4">
+        {/* 대사 표시 (있을 경우) */}
+        {dialogueText && (
+          <div className="mb-4 p-3 bg-white/10 rounded-lg border-l-4 border-purple-500">
+            <p className="text-sm text-gray-400 mb-1">💬 대사</p>
+            <p className="text-white text-lg font-medium">"{dialogueText}"</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-4">
+          {/* Image Preview - 더 큰 영역 */}
+          <div className="col-span-2">
+            <div className="aspect-[4/3] bg-gray-900 rounded-lg overflow-hidden relative">
+              <AnimatePresence mode="wait">
+                {isGenerating ? (
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 flex items-center justify-center"
+                  >
+                    <div className="text-center">
+                      <LoadingSpinner size="lg" className="mx-auto mb-2" />
+                      <p className="text-gray-400 text-sm">이미지 생성 중...</p>
+                    </div>
+                  </motion.div>
+                ) : previewImage ? (
+                  <motion.img
+                    key="preview"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    src={previewImage}
+                    alt="Preview"
+                    className="w-full h-full object-contain bg-gray-950"
+                  />
+                ) : panel.generatedImage ? (
+                  <motion.img
+                    key="generated"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    src={panel.generatedImage.imageData}
+                    alt={`Panel ${panel.panelNumber}`}
+                    className="w-full h-full object-contain bg-gray-950"
+                  />
+                ) : (
+                  <motion.div
+                    key="empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 flex items-center justify-center"
+                  >
+                    <div className="text-center">
+                      <span className="text-5xl mb-3 block">🎨</span>
+                      <p className="text-gray-400">이미지를 생성해주세요</p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+
+          {/* Panel Settings - 우측 */}
+          <div className="space-y-3">
+            <Dropdown
+              label="앵글"
+              options={cameraAngles}
+              value={panel.cameraAngle}
+              onChange={(value) => onUpdate({ cameraAngle: value as CameraAngle })}
+            />
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">장면 설명</label>
+              <textarea
+                value={panel.composition}
+                onChange={(e) => onUpdate({ composition: e.target.value })}
+                rows={3}
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm resize-none"
+                placeholder="장면 설명..."
               />
-            ) : panel.generatedImage ? (
-              <motion.img
-                key="generated"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                src={panel.generatedImage.imageData}
-                alt={`Panel ${panel.panelNumber}`}
-                className="w-full h-full object-cover"
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">대사 수정</label>
+              <textarea
+                value={dialogueText}
+                onChange={(e) => {
+                  const newDialogues = panel.dialogues?.length
+                    ? [{ ...panel.dialogues[0], text: e.target.value }]
+                    : [{ id: `dlg-${Date.now()}`, text: e.target.value, type: 'speech' as const, bubbleStyle: 'normal' as const, position: { x: 50, y: 20 }, size: { width: 200, height: 80 }, fontSize: 'medium' as const }];
+                  onUpdate({ dialogues: newDialogues });
+                }}
+                rows={2}
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm resize-none"
+                placeholder="캐릭터 대사..."
               />
-            ) : (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                <div className="text-center">
-                  <span className="text-4xl mb-2 block">🎨</span>
-                  <p className="text-gray-400 text-sm">이미지를 생성해주세요</p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+            </div>
+          </div>
         </div>
 
-        {/* Panel Settings */}
-        <div className="space-y-4">
-          <Dropdown
-            label="카메라 앵글"
-            options={cameraAngles}
-            value={panel.cameraAngle}
-            onChange={(value) => onUpdate({ cameraAngle: value as CameraAngle })}
-          />
-
-          <TextArea
-            label="장면 설명"
-            value={panel.composition}
-            onChange={(e) => onUpdate({ composition: e.target.value })}
-            rows={3}
-            placeholder="패널에 표현할 장면을 설명해주세요"
-          />
-
-          <TextArea
-            label="분위기 & 조명"
-            value={`${panel.mood}, ${panel.lighting}`}
-            onChange={(e) => {
-              const [mood, lighting] = e.target.value.split(',').map((s) => s.trim());
-              onUpdate({ mood, lighting });
-            }}
+        {/* 피드백 입력 및 재생성 */}
+        <div className="mt-4 p-3 bg-gray-700/50 rounded-lg">
+          <label className="block text-sm text-gray-300 mb-2">✏️ 보완점 입력 (재생성 시 반영됨)</label>
+          <textarea
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
             rows={2}
-            placeholder="분위기, 조명"
+            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm resize-none mb-3"
+            placeholder="예: 현대 배경으로 바꿔줘, 표정을 더 밝게, 옷을 한복으로..."
           />
 
-          {/* Action Buttons */}
-          <div className="flex gap-2 pt-2">
-            {previewImage ? (
+          <div className="flex gap-2 flex-wrap">
+            {/* 이미지 생성/재생성 버튼 - 항상 표시 */}
+            <Button
+              variant="primary"
+              onClick={() => handleGenerateImage('preview')}
+              disabled={isGenerating}
+              loading={isGenerating}
+            >
+              {panel.generatedImage || previewImage ? '🔄 재생성' : '🎨 이미지 생성'}
+            </Button>
+
+            {/* 프리뷰가 있을 때만 승인/취소 버튼 표시 */}
+            {previewImage && (
               <>
-                <Button
-                  variant="secondary"
-                  onClick={() => setPreviewImage(null)}
-                  fullWidth
-                >
-                  다시 생성
+                <Button variant="primary" onClick={handleApprovePreview} size="sm">
+                  ✓ 승인
                 </Button>
-                <Button
-                  variant="primary"
-                  onClick={handleApprovePreview}
-                  fullWidth
-                >
-                  승인
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => handleGenerateImage('high')}
-                  disabled={isGenerating}
-                >
-                  고해상도
+                <Button variant="secondary" onClick={() => setPreviewImage(null)} size="sm">
+                  취소
                 </Button>
               </>
-            ) : (
-              <Button
-                variant="primary"
-                onClick={() => handleGenerateImage('preview')}
-                disabled={isGenerating}
-                loading={isGenerating}
-                fullWidth
-              >
-                {panel.generatedImage ? '재생성' : '이미지 생성'}
-              </Button>
             )}
           </div>
         </div>
       </div>
-
-      {/* Characters in Panel */}
-      {panel.characters.length > 0 && (
-        <div className="px-4 pb-4">
-          <p className="text-sm text-gray-400 mb-2">등장 캐릭터</p>
-          <div className="flex flex-wrap gap-2">
-            {panel.characters.map((char, index) => (
-              <span
-                key={index}
-                className="px-3 py-1 bg-gray-700 rounded-full text-sm text-white"
-              >
-                {char.characterName}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
