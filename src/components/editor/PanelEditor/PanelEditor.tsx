@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, LoadingSpinner, Dropdown } from '@/components/common';
 import { geminiService } from '@/services/gemini/GeminiService';
+import { renderSpeechBubble } from '@/utils/speechBubbleRenderer';
 import type { Panel, PanelSize, CameraAngle } from '@/types';
 import { useProjectStore, useUIStore } from '@/stores';
 
@@ -56,19 +57,30 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
       // 장면 설명에서 현대/고대 배경 자동 감지
       const isModernScene = /modern|office|computer|contemporary|apartment|city|urban|smartphone|laptop|desk|cubicle/i.test(sceneDesc);
 
-      // 세계관/시대 배경 가져오기 (장면 설명이 우선)
+      // 세계관/시대 배경 가져오기
       const worldSetting = currentProject.worldBuilding;
       const era = worldSetting?.era || 'ancient';
 
+      // 에피소드 정보 (나중에 활용 가능)
+      // const currentEpisode = currentProject.episodes.find(ep => ep.panels.some(p => p.id === panel.id));
+
       // 장면 설명에 따라 배경 스타일 결정 (장면 설명이 세계관보다 우선)
       let eraStyle = '';
+      let costumeStyle = '';
+
       if (isModernScene) {
-        eraStyle = 'modern contemporary Korean setting, current day';
-      } else if (era.includes('철기') || era.includes('고구려') || era.includes('ancient')) {
-        eraStyle = 'ancient Korean Three Kingdoms period, traditional hanok, wooden architecture, oil lamps, no modern elements';
+        eraStyle = 'modern contemporary Korean setting, current day, 2024';
+        costumeStyle = 'modern Korean fashion, office wear or casual modern clothing';
+      } else if (era.includes('철기') || era.includes('고구려') || era.includes('ancient') || era.includes('삼국')) {
+        eraStyle = 'ancient Korean Three Kingdoms period (37 BC - 668 AD), traditional hanok architecture, wooden structures, thatched or tiled roofs, oil lamps, no modern elements whatsoever';
+        costumeStyle = 'authentic ancient Korean hanbok from Three Kingdoms era, layered silk robes, traditional hair accessories, jade ornaments for nobility';
+      } else if (era.includes('조선')) {
+        eraStyle = 'Joseon Dynasty Korea (1392-1897), traditional hanok, paper windows, wooden furniture';
+        costumeStyle = 'Joseon era hanbok, gat (traditional hat) for men, jokduri for women';
       }
 
-      // 패널에 등장하는 캐릭터의 상세 정보 가져오기 (영어로)
+
+      // 패널에 등장하는 캐릭터의 상세 정보 가져오기 (영어로) - 일관성 강화
       const characterDetails = panel.characters.map((pc) => {
         const fullCharacter = currentProject.characters.find(
           (c) => c.name === pc.characterName || c.koreanName === pc.characterName
@@ -82,52 +94,112 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
           const eyeColor = fullCharacter.appearance?.eyeColor || 'dark brown';
           const bodyType = fullCharacter.appearance?.bodyType || 'slim';
           const height = fullCharacter.appearance?.height || '';
+          const skinTone = fullCharacter.appearance?.skinTone || 'fair';
+          const faceShape = fullCharacter.appearance?.faceShape || 'oval';
+          const eyeShape = fullCharacter.appearance?.eyeShape || 'almond';
           const features = fullCharacter.appearance?.distinguishingFeatures?.join(', ') || '';
+          const defaultOutfit = fullCharacter.appearance?.defaultOutfit || '';
 
-          // 현대 장면이면 현대 복장, 아니면 한복
-          const clothing = isModernScene
-            ? 'modern Korean office attire, business casual'
-            : 'traditional ancient Korean hanbok, silk robes';
+          // 캐릭터의 기본 의상이 있으면 사용, 없으면 시대에 맞는 의상
+          const clothing = defaultOutfit
+            ? defaultOutfit
+            : (isModernScene ? costumeStyle : costumeStyle);
 
-          return `${fullCharacter.name}: ${gender}, ${age} years old, ${hairColor} ${hairStyle} hair, ${eyeColor} eyes, ${bodyType} body, wearing ${clothing}${height ? `, ${height}` : ''}${features ? `, ${features}` : ''}`;
+          // 캐릭터 역할에 따른 의상 품질
+          const roleBasedClothing = fullCharacter.role === 'protagonist'
+            ? `elegant ${clothing}, high quality fabric`
+            : fullCharacter.role === 'antagonist'
+              ? `imposing ${clothing}, dark tones`
+              : clothing;
+
+          // 더 상세한 캐릭터 설명으로 일관성 강화
+          return `[CHARACTER: ${fullCharacter.name}] ${gender}, exactly ${age} years old, MUST have ${hairColor} ${hairStyle} hair, ${eyeColor} ${eyeShape} eyes, ${skinTone} skin, ${faceShape} face, ${bodyType} body${height ? `, ${height}` : ''}, wearing ${roleBasedClothing}${features ? `. Distinctive features: ${features}` : ''}. CRITICAL: Keep this character's face and appearance EXACTLY consistent with reference image provided.`;
         }
         return isModernScene ? 'Korean person in modern clothing' : 'Korean person in traditional hanbok';
-      }).join('; ');
+      }).join('\n');
 
       // 피드백이 있으면 반영
       const feedbackText = feedback ? `\n\nUser feedback to apply: ${feedback}` : '';
 
-      // 웹툰 스타일 이미지 생성용 프롬프트 (장면 설명 그대로 사용)
-      const prompt = `Korean webtoon manhwa illustration:
+      // 대사는 Canvas로 합성하므로 AI는 말풍선을 그리지 않음
+      const dialogueText = panel.dialogues?.[0]?.text || '';
 
-Scene: ${sceneDesc}
+      // 레퍼런스 이미지 사용 여부 확인
+      const hasReferenceImages = panel.characters.some((pc) => {
+        const fullCharacter = currentProject.characters.find(
+          (c) => c.name === pc.characterName || c.koreanName === pc.characterName
+        );
+        return fullCharacter && fullCharacter.referenceImages && fullCharacter.referenceImages.length > 0;
+      });
 
-${characterDetails ? `Character: ${characterDetails}` : ''}
+      // 웹툰 스타일 이미지 생성용 프롬프트 - 한글 제거, 영어만 사용
+      const prompt = `Generate a Korean webtoon illustration. NO TEXT IN IMAGE.
 
-${eraStyle ? `Setting: ${eraStyle}` : ''}${feedbackText}
+SCENE: ${sceneDesc}
 
-Art style: Korean webtoon manhwa style, clean anime lineart, soft cel shading, ${panel.cameraAngle || 'medium'} shot, professional quality, spacious composition.
+${hasReferenceImages ? `CHARACTER CONSISTENCY: Match the reference image exactly - same hair, same face, same eyes.` : ''}
 
-RULES:
-- NO TEXT in image
-- NO SPEECH BUBBLES
-- Follow the scene description exactly`;
+${characterDetails ? `CHARACTERS: ${characterDetails}` : ''}
+
+${eraStyle ? `SETTING: ${eraStyle}` : ''}
+${costumeStyle ? `COSTUMES: ${costumeStyle}` : ''}
+
+STYLE: Korean manhwa, clean lineart, cel-shading, ${panel.cameraAngle || 'medium shot'}.
+${feedbackText ? `\nADJUSTMENT: ${feedback}` : ''}
+
+IMPORTANT: Draw ONLY the illustration. No text, no letters, no speech bubbles, no captions, no titles, no watermarks. Pure artwork only.`;
+
+      // 패널에 등장하는 캐릭터들의 레퍼런스 이미지 수집
+      const characterRefImages: string[] = [];
+      for (const pc of panel.characters) {
+        const fullCharacter = currentProject.characters.find(
+          (c) => c.name === pc.characterName || c.koreanName === pc.characterName
+        );
+        if (fullCharacter && fullCharacter.referenceImages && fullCharacter.referenceImages.length > 0) {
+          // anchor 타입 레퍼런스 이미지 우선 사용
+          const anchorImage = fullCharacter.referenceImages.find(img => img.type === 'anchor');
+          if (anchorImage) {
+            characterRefImages.push(anchorImage.imageData);
+          } else {
+            characterRefImages.push(fullCharacter.referenceImages[0].imageData);
+          }
+        }
+      }
 
       const result = await geminiService.generateImage(prompt, {
         resolution,
         styleAnchor: '',
-        referenceImages: [],
+        referenceImages: characterRefImages,
         useCache: false,
       });
 
+      // 대사가 있으면 Canvas로 한글 텍스트 합성
+      let finalImageData = result.imageData;
+      if (dialogueText) {
+        try {
+          addToast({ message: '대사를 합성하고 있습니다...', type: 'info' });
+          const bubbleStyle = panel.dialogues?.[0]?.bubbleStyle;
+          const validBubbleStyle = (bubbleStyle === 'thought' || bubbleStyle === 'shout') ? bubbleStyle : 'normal';
+          finalImageData = await renderSpeechBubble(result.imageData, {
+            text: dialogueText,
+            position: panel.dialogues?.[0]?.position || { x: 50, y: 15 },
+            fontSize: 28,
+            bubbleStyle: validBubbleStyle,
+          });
+        } catch (err) {
+          console.error('Speech bubble rendering failed:', err);
+          // 합성 실패해도 원본 이미지는 사용
+        }
+      }
+
       if (resolution === 'preview') {
-        setPreviewImage(result.imageData);
+        setPreviewImage(finalImageData);
       } else {
         onUpdate({
           generatedImage: {
             id: Date.now().toString(),
             resolution,
-            imageData: result.imageData,
+            imageData: finalImageData,
             promptUsed: prompt,
             generatedAt: new Date(),
             fromCache: result.fromCache,
@@ -298,13 +370,13 @@ RULES:
 
         {/* 피드백 입력 및 재생성 */}
         <div className="mt-4 p-3 bg-gray-700/50 rounded-lg">
-          <label className="block text-sm text-gray-300 mb-2">✏️ 보완점 입력 (재생성 시 반영됨)</label>
+          <label className="block text-sm text-gray-300 mb-2">✏️ 그림 보완점 (재생성 시 반영)</label>
           <textarea
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             rows={2}
             className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm resize-none mb-3"
-            placeholder="예: 현대 배경으로 바꿔줘, 표정을 더 밝게, 옷을 한복으로..."
+            placeholder="예: 표정을 더 밝게, 배경을 어둡게, 앵글을 클로즈업으로... (대사는 위 '대사 수정'에 입력)"
           />
 
           <div className="flex gap-2 flex-wrap">
