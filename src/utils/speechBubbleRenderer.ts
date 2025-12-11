@@ -22,10 +22,10 @@ export async function renderSpeechBubble(
 ): Promise<string> {
   const {
     text,
-    position = { x: 50, y: 35 }, // 인물에 더 가깝게 (35%로 변경)
-    fontSize = 26, // 더 큰 폰트
+    position = { x: 85, y: 8 }, // 우측 상단으로 이동 (인물 얼굴과 겹치지 않게)
+    fontSize = 24, // 적당한 폰트 크기
     fontFamily = "'Noto Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif",
-    maxWidth = 300, // 더 넓은 말풍선
+    maxWidth = 250, // 적당한 말풍선 너비
     bubbleStyle = 'normal',
     tailDirection = 'down',
   } = options;
