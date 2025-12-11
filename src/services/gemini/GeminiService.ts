@@ -69,12 +69,12 @@ class GeminiServiceClass {
     }
 
     this.client = new GoogleGenerativeAI(apiKey);
-    // 텍스트: gemini-2.5-pro (최신, 최고 성능)
-    this.textModel = this.client.getGenerativeModel({ model: 'gemini-2.5-pro' });
+    // 텍스트: gemini-3.0-pro (최신, 최고 성능)
+    this.textModel = this.client.getGenerativeModel({ model: 'gemini-3.0-pro' });
     this.imageModel = this.client.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-3.0-pro-image',
       generationConfig: {
-        // @ts-expect-error - responseModalities is a valid Gemini 2.0 parameter
+        // @ts-expect-error - responseModalities is a valid Gemini parameter
         responseModalities: ['image', 'text'],
       },
     });
