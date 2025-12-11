@@ -149,22 +149,80 @@ ${feedbackText ? `\nADJUSTMENT: ${feedback}` : ''}
 
 IMPORTANT: Draw ONLY the illustration. No text, no letters, no speech bubbles, no captions, no titles, no watermarks. Pure artwork only.`;
 
-      // 패널에 등장하는 캐릭터들의 레퍼런스 이미지 수집
-      const characterRefImages: string[] = [];
+      // 패널에 등장하는 캐릭터들의 레퍼런스 이미지 수집 (최대 14개 - Gemini 3 Pro Image 지원)
+      const allRefImages: string[] = [];
+
+      // 1. 캐릭터 참조 이미지 수집 (얼굴, 표정, 포즈, 의상)
       for (const pc of panel.characters) {
         const fullCharacter = currentProject.characters.find(
           (c) => c.name === pc.characterName || c.koreanName === pc.characterName
         );
-        if (fullCharacter && fullCharacter.referenceImages && fullCharacter.referenceImages.length > 0) {
-          // anchor 타입 레퍼런스 이미지 우선 사용
-          const anchorImage = fullCharacter.referenceImages.find(img => img.type === 'anchor');
-          if (anchorImage) {
-            characterRefImages.push(anchorImage.imageData);
-          } else {
-            characterRefImages.push(fullCharacter.referenceImages[0].imageData);
+        if (fullCharacter) {
+          // anchor 이미지 (기본 얼굴/외모) - 최우선
+          const anchorImages = fullCharacter.referenceImages?.filter(img => img.type === 'anchor') || [];
+          for (const img of anchorImages.slice(0, 2)) {
+            allRefImages.push(img.imageData);
+          }
+
+          // 표정 참조 이미지 (패널의 감정에 맞는 것)
+          const expressionImages = fullCharacter.expressions?.filter(exp => exp.imageData) || [];
+          for (const exp of expressionImages.slice(0, 1)) {
+            if (exp.imageData) allRefImages.push(exp.imageData);
+          }
+
+          // 포즈 참조 이미지
+          const poseImages = fullCharacter.poses?.filter(pose => pose.imageData) || [];
+          for (const pose of poseImages.slice(0, 1)) {
+            if (pose.imageData) allRefImages.push(pose.imageData);
+          }
+
+          // 의상 참조 이미지
+          const outfitImages = fullCharacter.outfits?.filter(outfit => outfit.imageData) || [];
+          for (const outfit of outfitImages.slice(0, 1)) {
+            if (outfit.imageData) allRefImages.push(outfit.imageData);
+          }
+
+          // 기타 레퍼런스 이미지
+          const otherRefs = fullCharacter.referenceImages?.filter(img => img.type !== 'anchor') || [];
+          for (const img of otherRefs.slice(0, 1)) {
+            allRefImages.push(img.imageData);
           }
         }
       }
+
+      // 2. 배경/장소 참조 이미지 수집
+      if (currentProject.worldBuilding?.mainLocations) {
+        const locationName = panel.background?.description?.toLowerCase() || '';
+        for (const location of currentProject.worldBuilding.mainLocations) {
+          if (locationName.includes(location.name.toLowerCase())) {
+            // 해당 장소의 시간대/날씨 변형 이미지
+            for (const variation of location.variations || []) {
+              if (variation.generatedImage) {
+                allRefImages.push(variation.generatedImage);
+                break; // 하나만 사용
+              }
+            }
+          }
+        }
+      }
+
+      // 3. 이전 패널의 이미지 (화 내 일관성)
+      const currentEpisode = currentProject.episodes.find(ep =>
+        ep.panels.some(p => p.id === panel.id)
+      );
+      if (currentEpisode) {
+        const currentPanelIndex = currentEpisode.panels.findIndex(p => p.id === panel.id);
+        // 바로 이전 패널의 이미지 참조 (연속성)
+        if (currentPanelIndex > 0) {
+          const prevPanel = currentEpisode.panels[currentPanelIndex - 1];
+          if (prevPanel.generatedImage?.imageData) {
+            allRefImages.push(prevPanel.generatedImage.imageData);
+          }
+        }
+      }
+
+      // 최대 14개로 제한 (Gemini 3 Pro Image 한계)
+      const characterRefImages = allRefImages.slice(0, 14);
 
       const result = await geminiService.generateImage(prompt, {
         resolution,

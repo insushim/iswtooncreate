@@ -198,9 +198,12 @@ class GeminiServiceClass {
     try {
       const contents: any[] = [{ role: 'user', parts: [] }];
 
-      // Add reference images for character consistency
+      // Add reference images for character/scene consistency (Gemini 3 Pro Image supports up to 14 images)
       if (referenceImages.length > 0) {
-        for (const refImage of referenceImages.slice(0, 3)) {
+        // 최대 14개 참조 이미지 지원 (Gemini 3 Pro Image)
+        // - 최대 6개: 오브젝트/배경 이미지 (high-fidelity)
+        // - 최대 5개: 캐릭터 이미지 (character consistency)
+        for (const refImage of referenceImages.slice(0, 14)) {
           contents[0].parts.push({
             inlineData: {
               mimeType: 'image/png',
@@ -209,7 +212,12 @@ class GeminiServiceClass {
           });
         }
         contents[0].parts.push({
-          text: `Reference the above character images for consistency.\n\n${fullPrompt}`,
+          text: `CRITICAL: You MUST maintain EXACT visual consistency with the reference images above.
+- Character faces, hair, body proportions must match EXACTLY
+- Clothing style and colors must be consistent
+- Background/location style must match if provided
+
+${fullPrompt}`,
         });
       } else {
         contents[0].parts.push({ text: fullPrompt });
