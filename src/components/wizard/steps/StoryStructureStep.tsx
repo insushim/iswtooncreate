@@ -292,15 +292,21 @@ export const StoryStructureStep: React.FC<StoryStructureStepProps> = ({
           )}
 
           {/* Regenerate Button */}
-          <div className="flex justify-center pt-4">
+          <div className="flex flex-col items-center gap-2 pt-4">
             <Button
               variant="ghost"
-              onClick={generateStoryStructure}
+              onClick={() => {
+                console.log('[StoryStructure] 다시 생성하기 클릭, isGenerating:', isGenerating);
+                generateStoryStructure();
+              }}
               disabled={isGenerating}
               loading={isGenerating}
             >
-              다시 생성하기
+              {isGenerating ? '생성 중...' : '다시 생성하기'}
             </Button>
+            {error && (
+              <p className="text-red-400 text-sm">{error}</p>
+            )}
           </div>
         </motion.div>
       )}
