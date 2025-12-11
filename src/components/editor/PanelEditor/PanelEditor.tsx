@@ -54,30 +54,49 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
       // 장면 설명 (영어만 사용)
       const sceneDesc = panel.composition || panel.background?.description || '';
 
-      // 장면 설명에서 현대/고대 배경 자동 감지
-      const isModernScene = /modern|office|computer|contemporary|apartment|city|urban|smartphone|laptop|desk|cubicle/i.test(sceneDesc);
-
-      // 세계관/시대 배경 가져오기
+      // 세계관/시대 배경 가져오기 - 최우선 적용
       const worldSetting = currentProject.worldBuilding;
-      const era = worldSetting?.era || 'ancient';
+      const era = worldSetting?.era || '';
+      const setting = worldSetting?.setting || '';
 
-      // 에피소드 정보 (나중에 활용 가능)
-      // const currentEpisode = currentProject.episodes.find(ep => ep.panels.some(p => p.id === panel.id));
-
-      // 장면 설명에 따라 배경 스타일 결정 (장면 설명이 세계관보다 우선)
+      // 세계관 기반 시대/의상 스타일 결정 (세계관이 항상 우선!)
       let eraStyle = '';
       let costumeStyle = '';
+      let isHistorical = false;
 
-      if (isModernScene) {
-        eraStyle = 'modern contemporary Korean setting, current day, 2024';
-        costumeStyle = 'modern Korean fashion, office wear or casual modern clothing';
-      } else if (era.includes('철기') || era.includes('고구려') || era.includes('ancient') || era.includes('삼국')) {
-        eraStyle = 'ancient Korean Three Kingdoms period (37 BC - 668 AD), traditional hanok architecture, wooden structures, thatched or tiled roofs, oil lamps, no modern elements whatsoever';
-        costumeStyle = 'authentic ancient Korean hanbok from Three Kingdoms era, layered silk robes, traditional hair accessories, jade ornaments for nobility';
-      } else if (era.includes('조선')) {
-        eraStyle = 'Joseon Dynasty Korea (1392-1897), traditional hanok, paper windows, wooden furniture';
-        costumeStyle = 'Joseon era hanbok, gat (traditional hat) for men, jokduri for women';
+      // 세계관에서 시대 감지
+      if (era.includes('철기') || era.includes('고구려') || era.includes('ancient') || era.includes('삼국') ||
+          setting.includes('철기') || setting.includes('고구려') || setting.includes('삼국')) {
+        eraStyle = 'STRICTLY ancient Korean Three Kingdoms period (37 BC - 668 AD), traditional hanok architecture, wooden structures, thatched or tiled roofs, oil lamps, torches, NO modern elements whatsoever, NO electricity, NO modern buildings';
+        costumeStyle = 'authentic ancient Korean hanbok from Three Kingdoms era, layered silk robes, traditional hair accessories, jade ornaments for nobility, NO modern clothing';
+        isHistorical = true;
+      } else if (era.includes('조선') || setting.includes('조선')) {
+        eraStyle = 'STRICTLY Joseon Dynasty Korea (1392-1897), traditional hanok, paper windows, wooden furniture, NO modern elements';
+        costumeStyle = 'Joseon era hanbok, gat (traditional hat) for men, jokduri for women, NO modern clothing';
+        isHistorical = true;
+      } else if (era.includes('고려') || setting.includes('고려')) {
+        eraStyle = 'STRICTLY Goryeo Dynasty Korea (918-1392), Buddhist temples, traditional architecture, NO modern elements';
+        costumeStyle = 'Goryeo era traditional clothing, NO modern clothing';
+        isHistorical = true;
+      } else if (era.includes('현대') || era.includes('modern') || setting.includes('현대')) {
+        eraStyle = 'modern contemporary Korean setting, current day';
+        costumeStyle = 'modern Korean fashion';
+        isHistorical = false;
       }
+
+      // 세계관이 설정되지 않은 경우에만 장면 설명에서 시대 감지
+      if (!eraStyle) {
+        const isModernScene = /modern|office|computer|contemporary|apartment|city|urban|smartphone|laptop|desk|cubicle/i.test(sceneDesc);
+        if (isModernScene) {
+          eraStyle = 'modern contemporary Korean setting, current day';
+          costumeStyle = 'modern Korean fashion';
+        }
+      }
+
+      // 역사물인 경우 강력한 시대 일관성 경고 추가
+      const historicalWarning = isHistorical
+        ? '\n\nCRITICAL ERA CONSISTENCY: This is a HISTORICAL setting. ABSOLUTELY NO modern elements allowed - no modern buildings, no electricity, no modern clothing, no glasses, no modern hairstyles. Everything must be period-accurate.'
+        : '';
 
 
       // 패널에 등장하는 캐릭터의 상세 정보 가져오기 (영어로) - 일관성 강화
@@ -100,10 +119,10 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
           const features = fullCharacter.appearance?.distinguishingFeatures?.join(', ') || '';
           const defaultOutfit = fullCharacter.appearance?.defaultOutfit || '';
 
-          // 캐릭터의 기본 의상이 있으면 사용, 없으면 시대에 맞는 의상
+          // 캐릭터의 기본 의상이 있으면 사용, 없으면 시대에 맞는 의상 (세계관 우선)
           const clothing = defaultOutfit
             ? defaultOutfit
-            : (isModernScene ? costumeStyle : costumeStyle);
+            : costumeStyle || (isHistorical ? 'traditional Korean hanbok' : 'modern Korean clothing');
 
           // 캐릭터 역할에 따른 의상 품질
           const roleBasedClothing = fullCharacter.role === 'protagonist'
@@ -115,7 +134,7 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
           // 더 상세한 캐릭터 설명으로 일관성 강화
           return `[CHARACTER: ${fullCharacter.name}] ${gender}, exactly ${age} years old, MUST have ${hairColor} ${hairStyle} hair, ${eyeColor} ${eyeShape} eyes, ${skinTone} skin, ${faceShape} face, ${bodyType} body${height ? `, ${height}` : ''}, wearing ${roleBasedClothing}${features ? `. Distinctive features: ${features}` : ''}. CRITICAL: Keep this character's face and appearance EXACTLY consistent with reference image provided.`;
         }
-        return isModernScene ? 'Korean person in modern clothing' : 'Korean person in traditional hanbok';
+        return isHistorical ? 'Korean person in traditional hanbok, period-accurate clothing' : 'Korean person in modern clothing';
       }).join('\n');
 
       // 피드백이 있으면 반영
@@ -139,10 +158,11 @@ SCENE: ${sceneDesc}
 
 ${hasReferenceImages ? `CHARACTER CONSISTENCY: Match the reference image exactly - same hair, same face, same eyes.` : ''}
 
-${characterDetails ? `CHARACTERS: ${characterDetails}` : ''}
+${characterDetails ? `CHARACTERS:\n${characterDetails}` : ''}
 
-${eraStyle ? `SETTING: ${eraStyle}` : ''}
-${costumeStyle ? `COSTUMES: ${costumeStyle}` : ''}
+${eraStyle ? `SETTING (MANDATORY): ${eraStyle}` : ''}
+${costumeStyle ? `COSTUMES (MANDATORY): ${costumeStyle}` : ''}
+${historicalWarning}
 
 STYLE: Korean manhwa, clean lineart, cel-shading, ${panel.cameraAngle || 'medium shot'}.
 ${feedbackText ? `\nADJUSTMENT: ${feedback}` : ''}
