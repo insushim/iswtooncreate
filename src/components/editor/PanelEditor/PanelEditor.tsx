@@ -137,9 +137,6 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
         return isHistorical ? 'Korean person in traditional hanbok, period-accurate clothing' : 'Korean person in modern clothing';
       }).join('\n');
 
-      // 피드백이 있으면 반영
-      const feedbackText = feedback ? `\n\nUser feedback to apply: ${feedback}` : '';
-
       // 대사는 Canvas로 합성하므로 AI는 말풍선을 그리지 않음
       const dialogueText = panel.dialogues?.[0]?.text || '';
 
@@ -152,6 +149,7 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
       });
 
       // 웹툰 스타일 이미지 생성용 프롬프트 - 한글 제거, 영어만 사용
+      // 그림 보완점(feedback)은 처음 생성 시에도, 재생성 시에도 항상 반영
       const prompt = `Generate a Korean webtoon illustration. NO TEXT IN IMAGE.
 
 SCENE: ${sceneDesc}
@@ -165,7 +163,7 @@ ${costumeStyle ? `COSTUMES (MANDATORY): ${costumeStyle}` : ''}
 ${historicalWarning}
 
 STYLE: Korean manhwa, clean lineart, cel-shading, ${panel.cameraAngle || 'medium shot'}.
-${feedbackText ? `\nADJUSTMENT: ${feedback}` : ''}
+${feedback ? `\nADDITIONAL REQUIREMENTS: ${feedback}` : ''}
 
 IMPORTANT: Draw ONLY the illustration. No text, no letters, no speech bubbles, no captions, no titles, no watermarks. Pure artwork only.`;
 
