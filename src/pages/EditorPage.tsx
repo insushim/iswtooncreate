@@ -6,6 +6,7 @@ import { Button, LoadingSpinner, Tabs, Card } from '@/components/common';
 import { useProjectStore, useUIStore } from '@/stores';
 import { geminiService } from '@/services/gemini/GeminiService';
 import { parseJsonResponse } from '@/utils/parseJsonResponse';
+import { exportEpisode } from '@/utils/exportWebtoon';
 import type { Panel } from '@/types';
 
 const EditorPage: React.FC = () => {
@@ -226,9 +227,27 @@ const EditorPage: React.FC = () => {
       <EditorToolbar
         projectTitle={currentProject.title}
         episodeTitle={currentEpisode?.title || '에피소드 선택'}
-        onSave={() => addToast({ message: '저장되었습니다', type: 'success' })}
+        onSave={() => addToast({ message: '저장되었습니다 (자동 저장됨)', type: 'success' })}
         onPreview={() => navigate(`/preview/${projectId}`)}
-        onExport={() => addToast({ message: '내보내기 준비 중...', type: 'info' })}
+        onExport={async () => {
+          if (!currentEpisode) {
+            addToast({ message: '에피소드를 선택해주세요', type: 'error' });
+            return;
+          }
+          const panelsWithImages = currentEpisode.panels.filter(p => p.generatedImage?.imageData);
+          if (panelsWithImages.length === 0) {
+            addToast({ message: '내보낼 이미지가 없습니다', type: 'error' });
+            return;
+          }
+          try {
+            addToast({ message: '이미지를 병합하고 있습니다...', type: 'info' });
+            await exportEpisode(currentEpisode, { format: 'long-image' });
+            addToast({ message: '내보내기 완료!', type: 'success' });
+          } catch (err) {
+            console.error('Export failed:', err);
+            addToast({ message: '내보내기에 실패했습니다', type: 'error' });
+          }
+        }}
       />
 
       <div className="flex-1 flex">

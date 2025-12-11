@@ -122,7 +122,7 @@ const PreviewPage: React.FC = () => {
               exit={{ opacity: 0 }}
               className="space-y-1"
             >
-              {currentEpisode.panels
+              {[...currentEpisode.panels]
                 .sort((a, b) => a.panelNumber - b.panelNumber)
                 .map((panel, index) => (
                   <motion.div
