@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button, LoadingSpinner, Dropdown } from '@/components/common';
 import { geminiService } from '@/services/gemini/GeminiService';
 import { renderSpeechBubble } from '@/utils/speechBubbleRenderer';
+import { postProcessImage } from '@/utils/textRemovalPostProcess';
 import type { Panel, PanelSize, CameraAngle } from '@/types';
 import { useProjectStore, useUIStore } from '@/stores';
 
@@ -255,8 +256,19 @@ RENDER SPECIFICATION:
         useCache: false,
       });
 
-      // 대사가 있으면 Canvas로 한글 텍스트 합성
-      let finalImageData = result.imageData;
+      // 1단계: AI가 생성한 불필요한 텍스트 제거 (후처리)
+      addToast({ message: '이미지 후처리 중... (텍스트 감지/제거)', type: 'info' });
+      const postProcessed = await postProcessImage(result.imageData, {
+        useAI: true,
+        fallbackToBlur: true,
+      });
+
+      if (postProcessed.hadText) {
+        console.log('텍스트가 감지되어 제거되었습니다.');
+      }
+
+      // 2단계: 대사가 있으면 Canvas로 한글 텍스트 합성
+      let finalImageData = postProcessed.imageData;
       if (dialogueText) {
         try {
           addToast({ message: '대사를 합성하고 있습니다...', type: 'info' });
