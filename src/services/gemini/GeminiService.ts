@@ -69,8 +69,8 @@ class GeminiServiceClass {
     }
 
     this.client = new GoogleGenerativeAI(apiKey);
-    // 텍스트: gemini-3-pro (최신 추론 모델)
-    this.textModel = this.client.getGenerativeModel({ model: 'gemini-3-pro' });
+    // 텍스트: gemini-3-pro-preview (Gemini 3 최신)
+    this.textModel = this.client.getGenerativeModel({ model: 'gemini-3-pro-preview' });
     // 이미지 생성: gemini-3-pro-image-preview (Nano Banana Pro)
     this.imageModel = this.client.getGenerativeModel({
       model: 'gemini-3-pro-image-preview',
