@@ -15,6 +15,7 @@ interface SpeechBubbleOptions {
 
 /**
  * 이미지에 대사를 합성하여 새 이미지를 반환합니다.
+ * 말풍선은 항상 이미지 상단 바깥 영역에 배치하여 인물과 겹치지 않도록 합니다.
  */
 export async function renderSpeechBubble(
   imageData: string,
@@ -22,12 +23,10 @@ export async function renderSpeechBubble(
 ): Promise<string> {
   const {
     text,
-    position = { x: 85, y: 8 }, // 우측 상단으로 이동 (인물 얼굴과 겹치지 않게)
-    fontSize = 24, // 적당한 폰트 크기
+    fontSize = 28, // 더 큰 폰트
     fontFamily = "'Noto Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif",
-    maxWidth = 250, // 적당한 말풍선 너비
+    maxWidth = 320, // 더 넓은 말풍선
     bubbleStyle = 'normal',
-    tailDirection = 'down',
   } = options;
 
   if (!text.trim()) {
@@ -39,6 +38,26 @@ export async function renderSpeechBubble(
     img.crossOrigin = 'anonymous';
 
     img.onload = () => {
+      // 말풍선을 위한 상단 여백 계산
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      if (!tempCtx) {
+        reject(new Error('Canvas context not available'));
+        return;
+      }
+
+      // 텍스트 크기 미리 계산
+      tempCtx.font = `bold ${fontSize}px ${fontFamily}`;
+      const lines = wrapText(tempCtx, text, maxWidth);
+      const lineHeight = fontSize * 1.4;
+      const totalTextHeight = lines.length * lineHeight;
+      const padding = 32;
+      const bubbleHeight = Math.max(totalTextHeight + padding * 2, 80);
+
+      // 말풍선이 들어갈 상단 여백 (말풍선 높이 + 여유 공간)
+      const topMargin = bubbleHeight + 20;
+
+      // 최종 캔버스 (원본 이미지 + 상단 여백)
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
 
@@ -47,38 +66,33 @@ export async function renderSpeechBubble(
         return;
       }
 
-      // 캔버스 크기를 이미지 크기로 설정
+      // 캔버스 크기 설정 (상단에 말풍선 공간 추가)
       canvas.width = img.width;
-      canvas.height = img.height;
+      canvas.height = img.height + topMargin;
 
-      // 원본 이미지 그리기
-      ctx.drawImage(img, 0, 0);
+      // 배경을 흰색으로 채우기 (말풍선 영역)
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, topMargin);
+
+      // 원본 이미지를 아래쪽에 그리기
+      ctx.drawImage(img, 0, topMargin);
 
       // 텍스트 스타일 설정
       ctx.font = `bold ${fontSize}px ${fontFamily}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
 
-      // 텍스트를 여러 줄로 나누기
-      const lines = wrapText(ctx, text, maxWidth);
-      const lineHeight = fontSize * 1.4;
-      const totalTextHeight = lines.length * lineHeight;
+      // 말풍선 위치 (상단 여백 중앙)
+      const bubbleWidth = Math.max(maxWidth + padding * 2, 220);
+      const bubbleX = canvas.width / 2; // 중앙 정렬
+      const bubbleY = topMargin / 2; // 상단 여백 중앙
 
-      // 말풍선 위치 계산 (이미지 기준 퍼센트)
-      const bubbleX = (position.x / 100) * canvas.width;
-      const bubbleY = (position.y / 100) * canvas.height;
-
-      // 말풍선 크기 계산 - 더 크게
-      const padding = 28;
-      const bubbleWidth = Math.max(maxWidth + padding * 2, 180); // 최소 너비 보장
-      const bubbleHeight = Math.max(totalTextHeight + padding * 2, 70); // 최소 높이 보장
-
-      // 말풍선 그리기
-      drawBubble(ctx, bubbleX, bubbleY, bubbleWidth, bubbleHeight, bubbleStyle, tailDirection);
+      // 말풍선 그리기 (꼬리는 아래로 - 이미지를 가리킴)
+      drawBubble(ctx, bubbleX, bubbleY, bubbleWidth, bubbleHeight, bubbleStyle, 'down');
 
       // 텍스트 그리기
       ctx.fillStyle = bubbleStyle === 'shout' ? '#cc0000' : '#000000';
-      const textStartY = bubbleY - bubbleHeight / 2 + padding;
+      const textStartY = bubbleY - totalTextHeight / 2;
 
       lines.forEach((line, index) => {
         ctx.fillText(line, bubbleX, textStartY + index * lineHeight);
@@ -114,16 +128,16 @@ function drawBubble(
   ctx.save();
 
   // 그림자 효과
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
-  ctx.shadowBlur = 6;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+  ctx.shadowBlur = 8;
   ctx.shadowOffsetX = 2;
-  ctx.shadowOffsetY = 2;
+  ctx.shadowOffsetY = 3;
 
   if (style === 'thought') {
     // 생각 말풍선 (구름 모양)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-    ctx.strokeStyle = '#888888';
-    ctx.lineWidth = 1.5;
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#666666';
+    ctx.lineWidth = 2;
 
     // 구름 모양으로 여러 원 겹치기
     ctx.beginPath();
@@ -133,20 +147,20 @@ function drawBubble(
     ctx.stroke();
 
     // 작은 원들 (생각 꼬리)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(x + 10, y + halfHeight + 6, 5, 0, Math.PI * 2);
+    ctx.arc(x + 10, y + halfHeight + 8, 6, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(x + 18, y + halfHeight + 14, 3, 0, Math.PI * 2);
+    ctx.arc(x + 20, y + halfHeight + 18, 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   } else {
     // 일반/외침 말풍선 - 둥근 타원형 (웹툰 스타일)
     ctx.fillStyle = style === 'shout' ? '#fffde7' : '#ffffff';
-    ctx.strokeStyle = style === 'shout' ? '#e53935' : '#222222';
-    ctx.lineWidth = style === 'shout' ? 2.5 : 2;
+    ctx.strokeStyle = style === 'shout' ? '#d32f2f' : '#1a1a1a';
+    ctx.lineWidth = style === 'shout' ? 3 : 2.5;
 
     // 타원형 말풍선 본체
     ctx.beginPath();
@@ -160,38 +174,38 @@ function drawBubble(
     ctx.beginPath();
 
     if (tailDirection === 'down') {
-      // 아래 방향 꼬리
-      const tailX = x + 5;
-      const tailY = y + halfHeight - 5;
-      ctx.moveTo(tailX - 12, tailY);
-      ctx.quadraticCurveTo(tailX, tailY + 20, tailX + 5, tailY + 18);
-      ctx.quadraticCurveTo(tailX + 5, tailY + 5, tailX + 12, tailY);
+      // 아래 방향 꼬리 (더 자연스럽게)
+      const tailX = x;
+      const tailY = y + halfHeight - 3;
+      ctx.moveTo(tailX - 15, tailY);
+      ctx.quadraticCurveTo(tailX, tailY + 25, tailX + 8, tailY + 22);
+      ctx.quadraticCurveTo(tailX + 5, tailY + 8, tailX + 15, tailY);
     } else if (tailDirection === 'left') {
       const tailX = x - halfWidth + 5;
       const tailY = y + 5;
-      ctx.moveTo(tailX, tailY - 10);
-      ctx.quadraticCurveTo(tailX - 18, tailY, tailX - 16, tailY + 5);
-      ctx.quadraticCurveTo(tailX - 5, tailY + 5, tailX, tailY + 10);
+      ctx.moveTo(tailX, tailY - 12);
+      ctx.quadraticCurveTo(tailX - 22, tailY, tailX - 20, tailY + 6);
+      ctx.quadraticCurveTo(tailX - 5, tailY + 6, tailX, tailY + 12);
     } else if (tailDirection === 'right') {
       const tailX = x + halfWidth - 5;
       const tailY = y + 5;
-      ctx.moveTo(tailX, tailY - 10);
-      ctx.quadraticCurveTo(tailX + 18, tailY, tailX + 16, tailY + 5);
-      ctx.quadraticCurveTo(tailX + 5, tailY + 5, tailX, tailY + 10);
+      ctx.moveTo(tailX, tailY - 12);
+      ctx.quadraticCurveTo(tailX + 22, tailY, tailX + 20, tailY + 6);
+      ctx.quadraticCurveTo(tailX + 5, tailY + 6, tailX, tailY + 12);
     }
 
     ctx.fill();
 
-    // 꼬리 테두리 (본체와 겹치는 부분 제외)
+    // 꼬리 테두리
     ctx.beginPath();
     if (tailDirection === 'down') {
-      const tailX = x + 5;
-      const tailY = y + halfHeight - 5;
-      ctx.moveTo(tailX - 12, tailY);
-      ctx.quadraticCurveTo(tailX, tailY + 20, tailX + 5, tailY + 18);
-      ctx.quadraticCurveTo(tailX + 5, tailY + 5, tailX + 12, tailY);
+      const tailX = x;
+      const tailY = y + halfHeight - 3;
+      ctx.moveTo(tailX - 15, tailY);
+      ctx.quadraticCurveTo(tailX, tailY + 25, tailX + 8, tailY + 22);
+      ctx.quadraticCurveTo(tailX + 5, tailY + 8, tailX + 15, tailY);
     }
-    ctx.strokeStyle = style === 'shout' ? '#e53935' : '#222222';
+    ctx.strokeStyle = style === 'shout' ? '#d32f2f' : '#1a1a1a';
     ctx.stroke();
   }
 
