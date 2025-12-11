@@ -7,10 +7,12 @@ import {
   User,
 } from 'firebase/auth';
 import { getFirebaseAuth, getGoogleProvider, isFirebaseConfigured } from '@/services/firebase/config';
+import { SyncService } from '@/services/firebase/syncService';
 
 interface AuthState {
   user: User | null;
   isLoading: boolean;
+  isSyncing: boolean;
   error: string | null;
   isConfigured: boolean;
 
@@ -18,13 +20,15 @@ interface AuthState {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   checkConfiguration: () => boolean;
+  syncFromCloud: () => Promise<{ downloaded: number; errors: string[] }>;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       isLoading: true,
+      isSyncing: false,
       error: null,
       isConfigured: false,
 
@@ -43,8 +47,28 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
-        onAuthStateChanged(auth, (user) => {
+        let previousUser: User | null = null;
+
+        onAuthStateChanged(auth, async (user) => {
+          const wasLoggedOut = !previousUser;
+          previousUser = user;
+
           set({ user, isLoading: false });
+
+          // 로그인 시 자동으로 클라우드에서 동기화
+          if (user && wasLoggedOut) {
+            console.log('[Auth] 로그인 감지, 클라우드 동기화 시작...');
+            try {
+              const result = await get().syncFromCloud();
+              console.log(`[Auth] 클라우드 동기화 완료: ${result.downloaded}개 프로젝트`);
+
+              // 프로젝트 목록 새로고침
+              const { useProjectStore } = await import('./projectStore');
+              await useProjectStore.getState().loadProjects();
+            } catch (error) {
+              console.error('[Auth] 클라우드 동기화 실패:', error);
+            }
+          }
         });
       },
 
@@ -89,6 +113,26 @@ export const useAuthStore = create<AuthState>()(
           set({ error: error.message });
         } finally {
           set({ isLoading: false });
+        }
+      },
+
+      syncFromCloud: async () => {
+        const { user } = get();
+        if (!user) {
+          return { downloaded: 0, errors: ['로그인이 필요합니다.'] };
+        }
+
+        set({ isSyncing: true });
+
+        try {
+          const syncService = new SyncService(user.uid);
+          const result = await syncService.syncFromCloud();
+          return result;
+        } catch (error: any) {
+          console.error('Cloud sync failed:', error);
+          return { downloaded: 0, errors: [error.message] };
+        } finally {
+          set({ isSyncing: false });
         }
       },
     }),
