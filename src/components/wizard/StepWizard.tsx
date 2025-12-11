@@ -206,12 +206,60 @@ export const StepWizard: React.FC<StepWizardProps> = ({ editProjectId }) => {
     [currentStep, isEditMode]
   );
 
-  // 에디터로 돌아가기 (편집 모드)
-  const handleGoToEditor = useCallback(() => {
-    if (editProjectId) {
-      navigate(`/editor/${editProjectId}`);
+  // 에디터로 돌아가기 (편집 모드) - 변경사항 저장 후 이동
+  const handleGoToEditor = useCallback(async () => {
+    if (!editProjectId) return;
+
+    try {
+      setIsGenerating(true);
+      const { updateProject, addEpisode, deleteEpisode } = useProjectStore.getState();
+      const currentProject = useProjectStore.getState().currentProject;
+
+      // 프로젝트 기본 정보 업데이트
+      await updateProject(editProjectId, {
+        planning: wizardData.planning,
+        worldBuilding: wizardData.worldBuilding,
+        subGenres: wizardData.subGenres as any,
+      });
+
+      // 기존 에피소드 삭제 후 새로 추가 (에피소드 플랜 동기화)
+      if (currentProject?.episodes) {
+        for (const ep of currentProject.episodes) {
+          await deleteEpisode(editProjectId, ep.id);
+        }
+      }
+
+      // 새 에피소드 플랜 저장
+      for (const ep of wizardData.episodePlans) {
+        await addEpisode(editProjectId, {
+          episodeNumber: ep.episodeNumber,
+          title: ep.title,
+          summary: ep.summary || '',
+          status: 'planning',
+          panels: [],
+          keyEvents: ep.keyEvents || [],
+          emotionalArc: ep.emotionalArc || 'exposition',
+          endingHook: ep.endingHook || '',
+          characters: ep.characters || [],
+          locations: ep.locations || [],
+          wordCount: 0,
+          estimatedReadTime: 0,
+          translations: new Map(),
+        });
+      }
+
+      console.log(`[StepWizard] 저장 완료: ${wizardData.episodePlans.length}개 에피소드`);
+      setToast({ message: `${wizardData.episodePlans.length}개 에피소드가 저장되었습니다!`, type: 'success' });
+
+      setTimeout(() => {
+        navigate(`/editor/${editProjectId}`);
+      }, 500);
+    } catch (error) {
+      console.error('Save failed:', error);
+      setToast({ message: '저장에 실패했습니다.', type: 'error' });
+      setIsGenerating(false);
     }
-  }, [editProjectId, navigate]);
+  }, [editProjectId, navigate, wizardData]);
 
   const handleComplete = useCallback(async () => {
     try {
