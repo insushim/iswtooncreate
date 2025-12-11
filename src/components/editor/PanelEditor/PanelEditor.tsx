@@ -54,29 +54,47 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
       // 장면 설명 (영어만 사용)
       const sceneDesc = panel.composition || panel.background?.description || '';
 
-      // 세계관/시대 배경 가져오기 - 최우선 적용
+      // 세계관/시대 배경 가져오기
       const worldSetting = currentProject.worldBuilding;
       const era = worldSetting?.era || '';
       const setting = worldSetting?.setting || '';
 
-      // 세계관 기반 시대/의상 스타일 결정 (세계관이 항상 우선!)
+      // 피드백에서 시대 오버라이드 감지 (피드백이 최우선!)
+      const feedbackRequestsModern = /현대|modern|사무실|office|아파트|apartment|도시|city|스마트폰|컴퓨터|노트북/i.test(feedback);
+      const feedbackRequestsAncient = /고대|ancient|고구려|삼국|조선|고려|한복|전통/i.test(feedback);
+
+      // 세계관 기반 시대/의상 스타일 결정
       let eraStyle = '';
       let costumeStyle = '';
       let isHistorical = false;
 
-      // 세계관에서 시대 감지
-      if (era.includes('철기') || era.includes('고구려') || era.includes('ancient') || era.includes('삼국') ||
+      // 피드백이 현대를 요청하면 현대로 설정 (세계관 무시!)
+      if (feedbackRequestsModern) {
+        eraStyle = 'modern contemporary Korean setting, current day Seoul, modern buildings, urban environment';
+        costumeStyle = 'modern Korean fashion, casual modern clothing';
+        isHistorical = false;
+        console.log('[PanelEditor] Feedback requests modern setting - overriding worldbuilding');
+      }
+      // 피드백이 고대를 요청하면 고대로 설정
+      else if (feedbackRequestsAncient) {
+        eraStyle = 'ancient Korean historical setting, traditional architecture';
+        costumeStyle = 'traditional Korean hanbok';
+        isHistorical = true;
+        console.log('[PanelEditor] Feedback requests ancient setting');
+      }
+      // 피드백에 시대 지정이 없으면 세계관 사용
+      else if (era.includes('철기') || era.includes('고구려') || era.includes('ancient') || era.includes('삼국') ||
           setting.includes('철기') || setting.includes('고구려') || setting.includes('삼국')) {
-        eraStyle = 'STRICTLY ancient Korean Three Kingdoms period (37 BC - 668 AD), traditional hanok architecture, wooden structures, thatched or tiled roofs, oil lamps, torches, NO modern elements whatsoever, NO electricity, NO modern buildings';
-        costumeStyle = 'authentic ancient Korean hanbok from Three Kingdoms era, layered silk robes, traditional hair accessories, jade ornaments for nobility, NO modern clothing';
+        eraStyle = 'ancient Korean Three Kingdoms period, traditional hanok architecture, wooden structures';
+        costumeStyle = 'ancient Korean hanbok, layered silk robes, traditional hair accessories';
         isHistorical = true;
       } else if (era.includes('조선') || setting.includes('조선')) {
-        eraStyle = 'STRICTLY Joseon Dynasty Korea (1392-1897), traditional hanok, paper windows, wooden furniture, NO modern elements';
-        costumeStyle = 'Joseon era hanbok, gat (traditional hat) for men, jokduri for women, NO modern clothing';
+        eraStyle = 'Joseon Dynasty Korea, traditional hanok, paper windows';
+        costumeStyle = 'Joseon era hanbok';
         isHistorical = true;
       } else if (era.includes('고려') || setting.includes('고려')) {
-        eraStyle = 'STRICTLY Goryeo Dynasty Korea (918-1392), Buddhist temples, traditional architecture, NO modern elements';
-        costumeStyle = 'Goryeo era traditional clothing, NO modern clothing';
+        eraStyle = 'Goryeo Dynasty Korea, Buddhist temples, traditional architecture';
+        costumeStyle = 'Goryeo era traditional clothing';
         isHistorical = true;
       } else if (era.includes('현대') || era.includes('modern') || setting.includes('현대')) {
         eraStyle = 'modern contemporary Korean setting, current day';
@@ -84,7 +102,7 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
         isHistorical = false;
       }
 
-      // 세계관이 설정되지 않은 경우에만 장면 설명에서 시대 감지
+      // 장면 설명에서도 시대 감지 (세계관 없고 피드백 없을 때)
       if (!eraStyle) {
         const isModernScene = /modern|office|computer|contemporary|apartment|city|urban|smartphone|laptop|desk|cubicle/i.test(sceneDesc);
         if (isModernScene) {
@@ -141,7 +159,11 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
       const dialogueText = panel.dialogues?.[0]?.text || '';
 
       // 웹툰 스타일 이미지 생성용 프롬프트
-      // 간결하고 명확한 시각적 장면 묘사만 포함
+      // 피드백이 있으면 최우선으로 적용
+      const feedbackSection = feedback
+        ? `\n\n**CRITICAL USER FEEDBACK (MUST APPLY)**: ${feedback}\nThis feedback overrides any conflicting settings above.`
+        : '';
+
       const prompt = `Webtoon illustration, manhwa style, clean lineart, cel-shading.
 
 ${sceneDesc}
@@ -151,8 +173,9 @@ ${eraStyle ? `Setting: ${eraStyle}` : ''}
 ${costumeStyle ? `Costume: ${costumeStyle}` : ''}
 ${historicalWarning}
 
-Camera: ${panel.cameraAngle || 'medium shot'}.
-${feedback ? `Style note: ${feedback}` : ''}`;
+Camera: ${panel.cameraAngle || 'medium shot'}.${feedbackSection}`;
+
+      console.log('[PanelEditor] Generated prompt:', prompt);
 
 
       // 패널에 등장하는 캐릭터들의 레퍼런스 이미지 수집 (최대 14개 - Gemini 3 Pro Image 지원)
