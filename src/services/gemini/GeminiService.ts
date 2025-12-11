@@ -71,13 +71,14 @@ class GeminiServiceClass {
     this.client = new GoogleGenerativeAI(apiKey);
     // 텍스트: gemini-3-pro-preview (Gemini 3 최신)
     this.textModel = this.client.getGenerativeModel({ model: 'gemini-3-pro-preview' });
-    // 이미지 생성: gemini-3-pro-image-preview (Nano Banana Pro)
-    // responseModalities를 'image'만으로 설정하여 텍스트 생성 방지
+    // 이미지 생성: gemini-3-pro-image-preview (Gemini 3 Pro Image)
+    // responseModalities를 'image'만으로 설정 + 추가 설정으로 텍스트 생성 최대한 방지
     this.imageModel = this.client.getGenerativeModel({
       model: 'gemini-3-pro-image-preview',
       generationConfig: {
         // @ts-expect-error - responseModalities is a valid Gemini parameter
         responseModalities: ['image'],
+        temperature: 0.4, // 낮은 temperature로 더 예측 가능한 출력
       },
     });
   }
@@ -201,10 +202,25 @@ class GeminiServiceClass {
       const contents: any[] = [{ role: 'user', parts: [] }];
 
       // Add reference images for character/scene consistency (Gemini 3 Pro Image supports up to 14 images)
+      // 시스템 지시: 순수 이미지 아트워크만 생성
+      const systemInstruction = `[SYSTEM INSTRUCTION: OUTPUT IMAGE ARTWORK ONLY]
+You are generating concept art illustration. Your output must be a pure visual image containing only:
+- Drawn characters (with correct anatomy: 2 arms, 2 legs, 5 fingers per hand)
+- Backgrounds and environments
+- Objects and props
+
+Your output must NOT contain any:
+- Letters, words, or text of any language
+- Speech bubbles or dialogue boxes
+- Signs, labels, or captions
+- Watermarks or signatures
+- UI elements or overlays
+
+Generate clean concept art with blank/empty speech bubble areas if needed.
+`;
+
       if (referenceImages.length > 0) {
         // 최대 14개 참조 이미지 지원 (Gemini 3 Pro Image)
-        // - 최대 6개: 오브젝트/배경 이미지 (high-fidelity)
-        // - 최대 5개: 캐릭터 이미지 (character consistency)
         for (const refImage of referenceImages.slice(0, 14)) {
           contents[0].parts.push({
             inlineData: {
@@ -214,15 +230,16 @@ class GeminiServiceClass {
           });
         }
         contents[0].parts.push({
-          text: `CRITICAL: You MUST maintain EXACT visual consistency with the reference images above.
+          text: `${systemInstruction}
+
+REFERENCE MATCHING: Maintain EXACT visual consistency with reference images above.
 - Character faces, hair, body proportions must match EXACTLY
 - Clothing style and colors must be consistent
-- Background/location style must match if provided
 
 ${fullPrompt}`,
         });
       } else {
-        contents[0].parts.push({ text: fullPrompt });
+        contents[0].parts.push({ text: `${systemInstruction}\n\n${fullPrompt}` });
       }
 
       const result = await this.imageModel!.generateContent({ contents });

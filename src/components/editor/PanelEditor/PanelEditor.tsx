@@ -149,22 +149,29 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
       });
 
       // 웹툰 스타일 이미지 생성용 프롬프트
-      // 그림 보완점(feedback)은 처음 생성 시에도, 재생성 시에도 항상 반영
-      // Google 권장: 부정어(no, don't) 대신 긍정적 표현 사용
-      const prompt = `Create a clean webtoon illustration showing only visual artwork.
+      // 텍스트 생성 방지를 위한 최강화 버전 - "concept art" 스타일 강조
+      // 콘셉트 아트/배경화는 텍스트를 포함하지 않는 장르임을 활용
+      const prompt = `[OUTPUT: CONCEPT ART ILLUSTRATION ONLY]
 
-Scene: ${sceneDesc}
+STYLE: Professional concept art, Korean manhwa background art style, animation keyframe, storyboard visual.
 
-${hasReferenceImages ? `Match reference image exactly for character face and appearance.` : ''}
-${characterDetails ? `${characterDetails}` : ''}
-${eraStyle ? `Setting: ${eraStyle}` : ''}
-${costumeStyle ? `Clothing: ${costumeStyle}` : ''}
+SCENE COMPOSITION: ${sceneDesc}
+
+${hasReferenceImages ? `CHARACTER REFERENCE: Match provided reference images exactly - same face structure, same hair, same proportions.` : ''}
+${characterDetails ? `\nCHARACTER DETAILS:\n${characterDetails}` : ''}
+${eraStyle ? `\nERA/SETTING: ${eraStyle}` : ''}
+${costumeStyle ? `\nCOSTUME: ${costumeStyle}` : ''}
 ${historicalWarning}
 
-Style: Korean webtoon, clean lineart, cel-shading, ${panel.cameraAngle || 'medium shot'}.
-${feedback ? `Additional: ${feedback}` : ''}
+CAMERA: ${panel.cameraAngle || 'medium shot'}, cinematic framing.
+${feedback ? `\nART DIRECTION: ${feedback}` : ''}
 
-Output requirements: Generate pure visual artwork only. The image contains only characters, backgrounds, and objects. All surfaces are clean and unmarked. Speech bubbles and dialogue will be added separately by another system.`;
+RENDER SPECIFICATION:
+- Concept art illustration with clean linework and cel-shading
+- Characters have correct human anatomy (two arms, two legs, five fingers per hand)
+- All surfaces are smooth, unmarked, and free of any overlay elements
+- Pure visual storytelling through imagery alone`;
+
 
       // 패널에 등장하는 캐릭터들의 레퍼런스 이미지 수집 (최대 14개 - Gemini 3 Pro Image 지원)
       const allRefImages: string[] = [];
