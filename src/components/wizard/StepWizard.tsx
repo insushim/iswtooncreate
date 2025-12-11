@@ -90,6 +90,11 @@ export const StepWizard: React.FC<StepWizardProps> = ({ editProjectId }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [wizardData, setWizardData] = useState<WizardData>(initialData);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // 스텝 변경 시 isGenerating 초기화
+  useEffect(() => {
+    setIsGenerating(false);
+  }, [currentStep]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [savedProgress, setSavedProgress] = useState<{ step: number; data: WizardData } | null>(null);

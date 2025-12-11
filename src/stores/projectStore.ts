@@ -4,6 +4,48 @@ import { immer } from 'zustand/middleware/immer';
 import type { WebtoonProject, Character, Episode, Panel, ProjectStatus, Genre, ArtStyle, TargetAudience } from '@/types';
 import { db } from '@/services/storage/db';
 import { v4 as uuidv4 } from 'uuid';
+import { SyncService } from '@/services/firebase/syncService';
+import { useAuthStore } from './authStore';
+
+// 자동 동기화를 위한 디바운스 타이머
+let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+// 자동 클라우드 동기화 함수
+const autoSyncToCloud = async (project: WebtoonProject) => {
+  const user = useAuthStore.getState().user;
+  if (!user) return;
+
+  // 디바운스: 1초 이내 연속 호출은 마지막 것만 실행
+  if (syncDebounceTimer) {
+    clearTimeout(syncDebounceTimer);
+  }
+
+  syncDebounceTimer = setTimeout(async () => {
+    try {
+      const syncService = new SyncService(user.uid);
+
+      // 전체 프로젝트 데이터 로드
+      const characters = await db.characters.where('projectId').equals(project.id).toArray();
+      const episodes = await db.episodes.where('projectId').equals(project.id).toArray();
+
+      for (const episode of episodes) {
+        const panels = await db.panels.where('episodeId').equals(episode.id).toArray();
+        episode.panels = panels;
+      }
+
+      const fullProject = {
+        ...project,
+        characters,
+        episodes,
+      };
+
+      await syncService.uploadProject(fullProject);
+      console.log('[AutoSync] 클라우드 동기화 완료:', project.title);
+    } catch (error) {
+      console.error('[AutoSync] 동기화 실패:', error);
+    }
+  }, 1000);
+};
 
 export interface CreateProjectData {
   title: string;
@@ -140,6 +182,12 @@ export const useProjectStore = create<ProjectState>()(
             Object.assign(state.currentProject, updates, { updatedAt });
           }
         });
+
+        // 자동 클라우드 동기화
+        const project = await db.projects.get(id);
+        if (project) {
+          autoSyncToCloud(project);
+        }
       },
 
       deleteProject: async (id) => {
@@ -338,6 +386,12 @@ export const useProjectStore = create<ProjectState>()(
             }
           }
         });
+
+        // 자동 클라우드 동기화 (이미지 생성 후 등 중요 업데이트 시)
+        const { currentProject } = get();
+        if (currentProject) {
+          autoSyncToCloud(currentProject);
+        }
       },
 
       deletePanel: async (episodeId, panelId) => {

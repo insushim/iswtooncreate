@@ -56,7 +56,7 @@ export const BasicInfoStep: React.FC<BasicInfoStepProps> = ({
         value={data.episodeCount}
         onChange={(value) => updateData({ episodeCount: value })}
         min={5}
-        max={100}
+        max={200}
         step={5}
         formatValue={(v) => `${v}화`}
       />

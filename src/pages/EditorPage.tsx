@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { EditorToolbar, PanelEditor, Timeline } from '@/components/editor';
 import { Button, LoadingSpinner, Tabs, Card } from '@/components/common';
 import { useProjectStore, useUIStore } from '@/stores';
+import { useAuthStore } from '@/stores/authStore';
 import { geminiService } from '@/services/gemini/GeminiService';
 import { parseJsonResponse } from '@/utils/parseJsonResponse';
 import { exportEpisode } from '@/utils/exportWebtoon';
@@ -14,6 +15,7 @@ const EditorPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentProject, setCurrentProject, updatePanel, addPanel, deletePanel } = useProjectStore();
   const { selectedEpisodeId, setSelectedEpisode, selectedPanelId, setSelectedPanel, addToast } = useUIStore();
+  const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingPanels, setIsGeneratingPanels] = useState(false);
 
@@ -57,7 +59,10 @@ const EditorPage: React.FC = () => {
       const eraInfo = worldInfo?.era || '고대 한국';
       const settingInfo = worldInfo?.setting || '역사물';
 
-      const prompt = `웹툰 ${currentEpisode.episodeNumber}화 콘티. JSON으로 패널 10개.
+      // 60~80개 패널 생성 (웹툰 1화 적정 분량)
+      const targetPanelCount = 70;
+
+      const prompt = `웹툰 ${currentEpisode.episodeNumber}화 콘티. JSON으로 패널 ${targetPanelCount}개 생성.
 
 줄거리: ${currentEpisode.summary}
 세계관: ${eraInfo}, ${settingInfo}
@@ -68,25 +73,22 @@ const EditorPage: React.FC = () => {
 {"n":2,"img":"영어로 그림설명","dialog":""}
 ]}
 
-예시 (환생/빙의물의 경우):
-{"panels":[
-{"n":1,"img":"modern Korean office, exhausted young woman at desk, late night, computer screen glowing, contemporary setting","dialog":"아... 피곤해. 더는 못 버티겠어..."},
-{"n":2,"img":"woman collapsing on desk, passing out, modern office background","dialog":""},
-{"n":3,"img":"bright light, transition scene, swirling effect","dialog":""},
-{"n":4,"img":"ancient Korean palace bedroom, woman waking up on wooden bed, confused expression, traditional hanbok, oil lamps, Goguryeo era","dialog":"...어디야 여기?"},
-{"n":5,"img":"close up of woman's face looking at her hands, shocked expression, ancient Korean room","dialog":"이 손은... 내 손이 아니야!"}
-]}
-
 규칙:
-1. img = 영어로만! 그림 설명
-2. dialog = 한국어 대사. 캐릭터가 실제로 말하는 것만!
-3. dialog에 장면설명 절대 넣지마
-4. 대사 없는 장면은 dialog를 빈칸 ""으로
-5. 환생/빙의 스토리면 처음은 현대, 중간에 고대로 전환`;
+1. 반드시 ${targetPanelCount}개 패널 생성 (웹툰 1화 분량)
+2. img = 영어로만! 그림 설명 (구도, 표정, 배경 상세히)
+3. dialog = 한국어 대사만. 캐릭터가 실제로 말하는 것!
+4. dialog에 장면설명 절대 넣지마
+5. 대사 없는 장면은 dialog를 빈칸 ""으로
+6. 환생/빙의 스토리면 처음은 현대, 중간에 고대로 전환
+7. 다양한 앵글 사용: 클로즈업, 미디엄샷, 와이드샷, 버드아이 등
+8. 감정 표현 장면은 클로즈업으로
+9. 액션/배경 설명은 와이드샷으로
+10. 대화 장면은 미디엄샷으로
+11. 1~${targetPanelCount}번까지 순서대로 생성`;
 
       const response = await geminiService.generateText(prompt, {
         temperature: 0.8,
-        maxTokens: 8000,
+        maxTokens: 32000, // 70개 패널을 위해 토큰 증가
         useCache: false,
       });
 
@@ -310,8 +312,27 @@ const EditorPage: React.FC = () => {
           </Button>
         </div>
 
-        {/* 오른쪽: 빈 공간 (균형) */}
-        <div className="w-32"></div>
+        {/* 오른쪽: 클라우드 동기화 상태 */}
+        <div className="flex items-center gap-2">
+          {user ? (
+            <div className="flex items-center gap-2 text-green-400 text-sm">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+              </svg>
+              <span>자동 동기화 중</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => navigate('/settings')}
+              className="flex items-center gap-2 text-gray-400 hover:text-white text-sm transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+              </svg>
+              <span>로그인하여 동기화</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Toolbar */}

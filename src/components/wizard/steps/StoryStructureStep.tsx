@@ -31,66 +31,77 @@ export const StoryStructureStep: React.FC<StoryStructureStepProps> = ({
     setError(null);
 
     try {
-      const characterSummary = data.characters
-        .map((c) => `${c.name} (${c.role}): ${c.motivation}`)
-        .join('\n');
+      const mainChars = data.characters.slice(0, 5).map((c) => c.name).join(', ');
+      const totalEps = data.episodeCount;
 
-      const prompt = `
-        웹툰의 전체 스토리 구조를 설계해주세요.
+      // 100화 기준 막 구성 계산
+      const act1End = Math.floor(totalEps * 0.20);  // 1-20화 (20%)
+      const act2End = Math.floor(totalEps * 0.50);  // 21-50화 (30%)
+      const act3End = Math.floor(totalEps * 0.75);  // 51-75화 (25%)
+      const act4End = Math.floor(totalEps * 0.90);  // 76-90화 (15%)
+      // 5막: 91-100화 (10%) - 결말
 
-        작품 정보:
-        - 제목: ${data.title}
-        - 장르: ${data.genre}
-        - 시놉시스: ${data.planning.synopsis}
-        - 예상 회차: ${data.episodeCount}화
+      const prompt = `웹툰 "${data.title}" 스토리 구조 (총 ${totalEps}화 완결). JSON만 출력.
 
-        캐릭터:
-        ${characterSummary}
+장르: ${data.genre}
+줄거리: ${data.planning.synopsis.slice(0, 300)}
+캐릭터: ${mainChars}
 
-        다음 형식의 JSON으로 스토리 구조를 작성해주세요:
-        {
-          "acts": [
-            {
-              "actNumber": 1,
-              "title": "막 제목",
-              "description": "이 막의 설명",
-              "episodeRange": "1-10화",
-              "keyEvents": ["주요 사건1", "주요 사건2"],
-              "characterFocus": ["집중 캐릭터들"],
-              "emotionalTone": "감정 톤"
-            }
-          ],
-          "majorPlotPoints": [
-            {
-              "episode": 1,
-              "type": "hook|inciting_incident|first_pinch|midpoint|second_pinch|climax|resolution",
-              "description": "설명"
-            }
-          ],
-          "subplots": [
-            {
-              "title": "서브플롯 제목",
-              "characters": ["관련 캐릭터"],
-              "description": "설명",
-              "resolution": "해결 방향"
-            }
-          ],
-          "themes": ["테마1", "테마2"]
-        }
+⚠️ 중요: ${totalEps}화 완결 작품입니다. 결말은 반드시 ${act4End + 1}화 이후에만!
 
-        3막 구조로 설계해주세요.
-      `;
+{"acts":[
+{"actNumber":1,"title":"발단","description":"주인공 소개와 세계관 설정","episodeRange":"1-${act1End}화","keyEvents":["빙의/환생","새로운 환경 적응","핵심 인물 만남"],"characterFocus":["${mainChars.split(',')[0]}"],"emotionalTone":"설렘/호기심"},
+{"actNumber":2,"title":"전개","description":"갈등 시작과 관계 형성","episodeRange":"${act1End + 1}-${act2End}화","keyEvents":["첫 번째 위기","동맹 형성","적대 세력 등장"],"characterFocus":["주요캐릭터들"],"emotionalTone":"긴장/성장"},
+{"actNumber":3,"title":"위기","description":"주요 갈등 심화","episodeRange":"${act2End + 1}-${act3End}화","keyEvents":["배신/반전","큰 시련","관계 변화"],"characterFocus":["주요캐릭터들"],"emotionalTone":"절정/갈등"},
+{"actNumber":4,"title":"절정","description":"최대 위기와 선택","episodeRange":"${act3End + 1}-${act4End}화","keyEvents":["최종 대결 준비","희생","결단"],"characterFocus":["주요캐릭터들"],"emotionalTone":"긴박/비장"},
+{"actNumber":5,"title":"결말","description":"갈등 해결과 새로운 시작","episodeRange":"${act4End + 1}-${totalEps}화","keyEvents":["최종 승리/패배","에필로그","새로운 시작"],"characterFocus":["${mainChars.split(',')[0]}"],"emotionalTone":"감동/희망"}
+],
+"majorPlotPoints":[
+{"episode":1,"type":"hook","description":"빙의/환생 시작"},
+{"episode":${Math.floor(totalEps * 0.10)},"type":"inciting_incident","description":"본격적인 사건 시작"},
+{"episode":${Math.floor(totalEps * 0.25)},"type":"first_pinch","description":"첫 번째 위기"},
+{"episode":${Math.floor(totalEps * 0.50)},"type":"midpoint","description":"중대한 전환점"},
+{"episode":${Math.floor(totalEps * 0.75)},"type":"second_pinch","description":"두 번째 큰 위기"},
+{"episode":${Math.floor(totalEps * 0.90)},"type":"climax","description":"최종 대결"},
+{"episode":${totalEps},"type":"resolution","description":"완결"}
+],
+"subplots":[{"title":"로맨스","characters":["캐릭터1","캐릭터2"],"description":"감정선","resolution":"${act4End}화쯤 해결"}],
+"themes":["성장","운명"]}
+
+위 형식대로 내용만 채워서 JSON 출력. {로 시작.`;
 
       const response = await geminiService.generateText(prompt, {
         temperature: 0.7,
-        maxTokens: 8192,
+        maxTokens: 4096,
       });
 
+      console.log('[StoryStructure] Raw response:', response);
+
       const storyStructure = parseJsonResponse(response);
+      console.log('[StoryStructure] Parsed:', storyStructure);
+
       updateData({ storyStructure });
     } catch (err) {
       console.error('Story structure generation failed:', err);
-      setError('스토리 구조 생성에 실패했습니다. 다시 시도해주세요.');
+
+      // 실패해도 기본 구조로 진행할 수 있도록 폴백 생성
+      const fallbackStructure = {
+        acts: [
+          { actNumber: 1, title: '시작', description: '이야기의 시작', episodeRange: `1-${Math.floor(data.episodeCount * 0.25)}화`, keyEvents: ['주인공 소개'], characterFocus: [data.characters[0]?.name || '주인공'], emotionalTone: '설렘' },
+          { actNumber: 2, title: '전개', description: '갈등과 발전', episodeRange: `${Math.floor(data.episodeCount * 0.25) + 1}-${Math.floor(data.episodeCount * 0.75)}화`, keyEvents: ['갈등 심화'], characterFocus: [data.characters[0]?.name || '주인공'], emotionalTone: '긴장' },
+          { actNumber: 3, title: '결말', description: '클라이맥스와 해결', episodeRange: `${Math.floor(data.episodeCount * 0.75) + 1}-${data.episodeCount}화`, keyEvents: ['최종 대결'], characterFocus: [data.characters[0]?.name || '주인공'], emotionalTone: '감동' },
+        ],
+        majorPlotPoints: [
+          { episode: 1, type: 'hook', description: '이야기의 시작' },
+          { episode: Math.floor(data.episodeCount * 0.5), type: 'midpoint', description: '중간 전환점' },
+          { episode: data.episodeCount, type: 'climax', description: '클라이맥스' },
+        ],
+        subplots: [],
+        themes: [data.genre, '성장'],
+      };
+
+      updateData({ storyStructure: fallbackStructure });
+      setError('AI 생성 실패하여 기본 구조를 사용합니다. 필요시 수정해주세요.');
     } finally {
       setIsGenerating(false);
     }
