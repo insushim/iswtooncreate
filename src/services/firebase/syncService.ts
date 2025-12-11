@@ -51,6 +51,35 @@ export class SyncService {
     this.userId = userId;
   }
 
+  // 이미지 데이터 제거 (Firestore 1MB 제한 때문)
+  private stripImageData(obj: any): any {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(item => this.stripImageData(item));
+
+    const result: any = {};
+    for (const key in obj) {
+      // 이미지 데이터 필드 제외 (base64 데이터가 큼)
+      if (key === 'imageData' || key === 'generatedImage') {
+        // generatedImage는 메타데이터만 유지, imageData 제외
+        if (key === 'generatedImage' && obj[key]) {
+          result[key] = {
+            id: obj[key].id,
+            resolution: obj[key].resolution,
+            generatedAt: obj[key].generatedAt,
+            fromCache: obj[key].fromCache,
+            cost: obj[key].cost,
+            // imageData 제외!
+          };
+        }
+        // imageData 필드는 완전히 제외
+        continue;
+      }
+      result[key] = this.stripImageData(obj[key]);
+    }
+    return result;
+  }
+
   // 프로젝트 업로드 (로컬 → 클라우드)
   async uploadProject(project: WebtoonProject): Promise<void> {
     const firestore = getFirebaseDb();
@@ -70,16 +99,18 @@ export class SyncService {
 
     await batch.commit();
 
-    // 캐릭터 저장
+    // 캐릭터 저장 (이미지 데이터 제거)
     for (const character of project.characters) {
       const charRef = doc(firestore, 'users', this.userId, 'projects', project.id, 'characters', character.id);
-      await setDoc(charRef, toFirestoreData(character));
+      const charData = this.stripImageData(character);
+      await setDoc(charRef, toFirestoreData(charData));
     }
 
-    // 에피소드 저장
+    // 에피소드 저장 (이미지 데이터 제거)
     for (const episode of project.episodes) {
       const epRef = doc(firestore, 'users', this.userId, 'projects', project.id, 'episodes', episode.id);
-      await setDoc(epRef, toFirestoreData(episode));
+      const epData = this.stripImageData(episode);
+      await setDoc(epRef, toFirestoreData(epData));
     }
   }
 
