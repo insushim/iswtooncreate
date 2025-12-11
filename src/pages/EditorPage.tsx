@@ -260,13 +260,13 @@ const EditorPage: React.FC = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(`/create/${projectId}`)}
             className="text-gray-400 hover:text-white"
           >
             <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            대시보드
+            프로젝트 설정
           </Button>
           <div className="text-gray-400">|</div>
           <h1 className="text-white font-bold">{currentProject.title}</h1>

@@ -29,6 +29,8 @@ const AppRouter: React.FC = () => {
 
           {/* Create Project */}
           <Route path="/create" element={<CreateProjectPage />} />
+          {/* Edit Project (시놉시스, 에피소드 설정) */}
+          <Route path="/create/:projectId" element={<CreateProjectPage />} />
 
           {/* Editor */}
           <Route path="/editor/:projectId" element={<EditorPage />} />

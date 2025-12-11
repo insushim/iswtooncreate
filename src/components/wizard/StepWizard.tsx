@@ -82,19 +82,64 @@ const initialData: WizardData = {
   episodePlans: [],
 };
 
-export const StepWizard: React.FC = () => {
+interface StepWizardProps {
+  editProjectId?: string;
+}
+
+export const StepWizard: React.FC<StepWizardProps> = ({ editProjectId }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [wizardData, setWizardData] = useState<WizardData>(initialData);
   const [isGenerating, setIsGenerating] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [savedProgress, setSavedProgress] = useState<{ step: number; data: WizardData } | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const navigate = useNavigate();
-  const { createProject } = useProjectStore();
+  const { createProject, setCurrentProject } = useProjectStore();
 
-  // 저장된 진행 상황 확인
+  // 기존 프로젝트 편집 모드: 프로젝트 데이터 로드
   useEffect(() => {
+    if (editProjectId) {
+      const loadProject = async () => {
+        await setCurrentProject(editProjectId);
+        const project = useProjectStore.getState().currentProject;
+        if (project) {
+          setIsEditMode(true);
+          setWizardData({
+            title: project.title,
+            briefConcept: project.briefConcept,
+            targetAudience: project.targetAudience,
+            episodeCount: project.episodeCount,
+            genre: project.genre,
+            subGenres: project.subGenres || [],
+            mood: project.mood || [],
+            artStyle: project.artStyle,
+            planning: project.planning,
+            worldBuilding: project.worldBuilding,
+            characters: project.characters || [],
+            storyStructure: (project as any).storyStructure,
+            episodePlans: project.episodes?.map(ep => ({
+              episodeNumber: ep.episodeNumber,
+              title: ep.title,
+              summary: ep.summary,
+              openingHook: (ep as any).openingHook || '',
+              endingHook: ep.endingHook || '',
+              keyScenes: (ep as any).keyScenes || [],
+            })) || [],
+            styleGuide: project.styleGuide,
+          });
+          // 편집 모드에서는 에피소드 스텝으로 바로 이동
+          setCurrentStep(6); // episode step
+        }
+      };
+      loadProject();
+    }
+  }, [editProjectId, setCurrentProject]);
+
+  // 저장된 진행 상황 확인 (새 프로젝트일 때만)
+  useEffect(() => {
+    if (editProjectId) return; // 편집 모드면 스킵
     const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
     if (saved) {
       try {
@@ -105,7 +150,7 @@ export const StepWizard: React.FC = () => {
         }
       } catch {}
     }
-  }, []);
+  }, [editProjectId]);
 
   // 진행 상황 자동 저장 (스텝 또는 데이터 변경 시)
   useEffect(() => {
@@ -148,12 +193,20 @@ export const StepWizard: React.FC = () => {
 
   const handleGoToStep = useCallback(
     (stepIndex: number) => {
-      if (stepIndex <= currentStep) {
+      // 편집 모드에서는 모든 스텝으로 자유롭게 이동 가능
+      if (isEditMode || stepIndex <= currentStep) {
         setCurrentStep(stepIndex);
       }
     },
-    [currentStep]
+    [currentStep, isEditMode]
   );
+
+  // 에디터로 돌아가기 (편집 모드)
+  const handleGoToEditor = useCallback(() => {
+    if (editProjectId) {
+      navigate(`/editor/${editProjectId}`);
+    }
+  }, [editProjectId, navigate]);
 
   const handleComplete = useCallback(async () => {
     try {
@@ -292,18 +345,25 @@ export const StepWizard: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => isEditMode ? handleGoToEditor() : navigate('/dashboard')}
             className="flex items-center text-gray-400 hover:text-white transition-colors"
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            돌아가기
+            {isEditMode ? '에디터로 돌아가기' : '대시보드'}
           </button>
 
-          <h1 className="text-2xl font-bold text-white">새 웹툰 프로젝트</h1>
+          <h1 className="text-2xl font-bold text-white">
+            {isEditMode ? `${wizardData.title} - 프로젝트 설정` : '새 웹툰 프로젝트'}
+          </h1>
 
-          <div className="w-24" />
+          {isEditMode && (
+            <Button variant="primary" size="sm" onClick={handleGoToEditor}>
+              에디터로 이동
+            </Button>
+          )}
+          {!isEditMode && <div className="w-24" />}
         </div>
 
         {/* Progress */}
