@@ -71,10 +71,10 @@ class GeminiServiceClass {
     this.client = new GoogleGenerativeAI(apiKey);
     // 텍스트: gemini-3.0-pro (최신, 최고 성능)
     this.textModel = this.client.getGenerativeModel({ model: 'gemini-3.0-pro' });
-    // 이미지 생성: gemini-2.5-flash-preview-image-generation (Nano Banana)
-    // 더 나은 이미지 품질, 캐릭터 일관성 지원
+    // 이미지 생성: gemini-3-pro-image-preview (Nano Banana Pro)
+    // 최고 품질, 최대 4096px, 14개 참조 이미지 지원
     this.imageModel = this.client.getGenerativeModel({
-      model: 'gemini-2.5-flash-preview-image-generation',
+      model: 'gemini-3-pro-image-preview',
       generationConfig: {
         // @ts-expect-error - responseModalities is a valid Gemini parameter
         responseModalities: ['image', 'text'],
