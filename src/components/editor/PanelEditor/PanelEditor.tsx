@@ -150,9 +150,10 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
 
       // 웹툰 스타일 이미지 생성용 프롬프트
       // 그림 보완점(feedback)은 처음 생성 시에도, 재생성 시에도 항상 반영
-      const prompt = `Create a webtoon illustration. OUTPUT IMAGE ONLY, ZERO TEXT.
+      // Google 권장: 부정어(no, don't) 대신 긍정적 표현 사용
+      const prompt = `Create a clean webtoon illustration showing only visual artwork.
 
-${sceneDesc}
+Scene: ${sceneDesc}
 
 ${hasReferenceImages ? `Match reference image exactly for character face and appearance.` : ''}
 ${characterDetails ? `${characterDetails}` : ''}
@@ -160,10 +161,10 @@ ${eraStyle ? `Setting: ${eraStyle}` : ''}
 ${costumeStyle ? `Clothing: ${costumeStyle}` : ''}
 ${historicalWarning}
 
-Style: Korean webtoon, clean lines, ${panel.cameraAngle || 'medium shot'}.
-${feedback ? `Requirements: ${feedback}` : ''}
+Style: Korean webtoon, clean lineart, cel-shading, ${panel.cameraAngle || 'medium shot'}.
+${feedback ? `Additional: ${feedback}` : ''}
 
-STRICT: No text, no letters, no words, no speech bubbles, no captions, no watermarks in image. Pure illustration only.`;
+Output requirements: Generate pure visual artwork only. The image contains only characters, backgrounds, and objects. All surfaces are clean and unmarked. Speech bubbles and dialogue will be added separately by another system.`;
 
       // 패널에 등장하는 캐릭터들의 레퍼런스 이미지 수집 (최대 14개 - Gemini 3 Pro Image 지원)
       const allRefImages: string[] = [];
