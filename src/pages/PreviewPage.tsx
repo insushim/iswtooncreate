@@ -133,6 +133,7 @@ const PreviewPage: React.FC = () => {
                     className="relative"
                   >
                     {/* Image or Placeholder */}
+                    {/* 대사는 이미 이미지에 합성되어 있으므로 오버레이 제거 */}
                     <div className="relative">
                       {panel.generatedImage ? (
                         <img
@@ -150,66 +151,7 @@ const PreviewPage: React.FC = () => {
                           </div>
                         </div>
                       )}
-
-                      {/* Dialogues Overlay - Inside the image container */}
-                      {panel.dialogues && panel.dialogues.length > 0 && panel.dialogues.map((dialogue) => (
-                        <div
-                          key={dialogue.id}
-                          className="absolute z-10"
-                          style={{
-                            left: `${dialogue.position?.x || 50}%`,
-                            top: `${dialogue.position?.y || 15}%`,
-                            transform: 'translate(-50%, 0)',
-                            maxWidth: '80%',
-                          }}
-                        >
-                          <div
-                            className={`
-                              px-4 py-3 rounded-2xl shadow-lg
-                              ${dialogue.bubbleStyle === 'thought' ? 'bg-white/90 rounded-full border-2 border-dashed border-gray-300' : 'bg-white border border-gray-200'}
-                              ${dialogue.bubbleStyle === 'shout' ? 'border-2 border-red-500 bg-yellow-50' : ''}
-                            `}
-                            style={{
-                              minWidth: '100px',
-                            }}
-                          >
-                            <p
-                              className={`
-                                text-gray-900 text-center leading-relaxed
-                                ${dialogue.fontSize === 'small' ? 'text-sm' : dialogue.fontSize === 'large' ? 'text-xl font-bold' : 'text-base'}
-                                ${dialogue.bubbleStyle === 'shout' ? 'font-bold text-red-600' : ''}
-                              `}
-                              style={{ wordBreak: 'keep-all' }}
-                            >
-                              {dialogue.text}
-                            </p>
-                          </div>
-                          {/* Speech bubble tail */}
-                          {dialogue.bubbleStyle !== 'thought' && (
-                            <div
-                              className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
-                              style={{
-                                bottom: '-10px',
-                                borderLeft: '10px solid transparent',
-                                borderRight: '10px solid transparent',
-                                borderTop: '12px solid white',
-                              }}
-                            />
-                          )}
-                        </div>
-                      ))}
                     </div>
-
-                    {/* Dialogue text below image for accessibility */}
-                    {panel.dialogues && panel.dialogues.length > 0 && (
-                      <div className="bg-gray-900/50 px-4 py-2 border-l-4 border-purple-500">
-                        {panel.dialogues.map((dialogue) => (
-                          <p key={dialogue.id} className="text-white text-sm">
-                            "{dialogue.text}"
-                          </p>
-                        ))}
-                      </div>
-                    )}
                   </motion.div>
                 ))}
 
