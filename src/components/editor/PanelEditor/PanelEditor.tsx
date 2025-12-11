@@ -148,30 +148,22 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
         return fullCharacter && fullCharacter.referenceImages && fullCharacter.referenceImages.length > 0;
       });
 
-      // 웹툰 스타일 이미지 생성용 프롬프트 - 한글 제거, 영어만 사용
+      // 웹툰 스타일 이미지 생성용 프롬프트
       // 그림 보완점(feedback)은 처음 생성 시에도, 재생성 시에도 항상 반영
-      const prompt = `[CRITICAL RULE - ZERO TEXT ALLOWED]
-You MUST generate a pure illustration with ABSOLUTELY NO TEXT of any kind.
-- NO dialogue, NO speech bubbles, NO captions
-- NO scene descriptions, NO labels, NO titles
-- NO watermarks, NO signatures, NO Korean/English/any letters
-- NO onomatopoeia, NO sound effects text
-The image must contain ONLY artwork - characters, backgrounds, objects. ANY text will be rejected.
+      const prompt = `Create a webtoon illustration. OUTPUT IMAGE ONLY, ZERO TEXT.
 
-SCENE: ${sceneDesc}
+${sceneDesc}
 
-${hasReferenceImages ? `CHARACTER CONSISTENCY: Match the reference image exactly - same hair, same face, same eyes.` : ''}
-
-${characterDetails ? `CHARACTERS:\n${characterDetails}` : ''}
-
-${eraStyle ? `SETTING (MANDATORY): ${eraStyle}` : ''}
-${costumeStyle ? `COSTUMES (MANDATORY): ${costumeStyle}` : ''}
+${hasReferenceImages ? `Match reference image exactly for character face and appearance.` : ''}
+${characterDetails ? `${characterDetails}` : ''}
+${eraStyle ? `Setting: ${eraStyle}` : ''}
+${costumeStyle ? `Clothing: ${costumeStyle}` : ''}
 ${historicalWarning}
 
-STYLE: Korean manhwa/webtoon, clean lineart, cel-shading, ${panel.cameraAngle || 'medium shot'}.
-${feedback ? `\nADDITIONAL REQUIREMENTS: ${feedback}` : ''}
+Style: Korean webtoon, clean lines, ${panel.cameraAngle || 'medium shot'}.
+${feedback ? `Requirements: ${feedback}` : ''}
 
-FINAL REMINDER: Generate ONLY pure artwork. Text will be added separately by the system. DO NOT include any letters, words, or symbols in the image.`;
+STRICT: No text, no letters, no words, no speech bubbles, no captions, no watermarks in image. Pure illustration only.`;
 
       // 패널에 등장하는 캐릭터들의 레퍼런스 이미지 수집 (최대 14개 - Gemini 3 Pro Image 지원)
       const allRefImages: string[] = [];

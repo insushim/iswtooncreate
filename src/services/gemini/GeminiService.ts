@@ -72,11 +72,12 @@ class GeminiServiceClass {
     // 텍스트: gemini-3-pro-preview (Gemini 3 최신)
     this.textModel = this.client.getGenerativeModel({ model: 'gemini-3-pro-preview' });
     // 이미지 생성: gemini-3-pro-image-preview (Nano Banana Pro)
+    // responseModalities를 'image'만으로 설정하여 텍스트 생성 방지
     this.imageModel = this.client.getGenerativeModel({
       model: 'gemini-3-pro-image-preview',
       generationConfig: {
         // @ts-expect-error - responseModalities is a valid Gemini parameter
-        responseModalities: ['image', 'text'],
+        responseModalities: ['image'],
       },
     });
   }
