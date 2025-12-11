@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button, LoadingSpinner, Dropdown } from '@/components/common';
 import { geminiService } from '@/services/gemini/GeminiService';
 import { renderSpeechBubble } from '@/utils/speechBubbleRenderer';
-import { postProcessImage } from '@/utils/textRemovalPostProcess';
 import type { Panel, PanelSize, CameraAngle } from '@/types';
 import { useProjectStore, useUIStore } from '@/stores';
 
@@ -141,37 +140,19 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
       // 대사는 Canvas로 합성하므로 AI는 말풍선을 그리지 않음
       const dialogueText = panel.dialogues?.[0]?.text || '';
 
-      // 레퍼런스 이미지 사용 여부 확인
-      const hasReferenceImages = panel.characters.some((pc) => {
-        const fullCharacter = currentProject.characters.find(
-          (c) => c.name === pc.characterName || c.koreanName === pc.characterName
-        );
-        return fullCharacter && fullCharacter.referenceImages && fullCharacter.referenceImages.length > 0;
-      });
-
       // 웹툰 스타일 이미지 생성용 프롬프트
-      // 텍스트 생성 방지를 위한 최강화 버전 - "concept art" 스타일 강조
-      // 콘셉트 아트/배경화는 텍스트를 포함하지 않는 장르임을 활용
-      const prompt = `[OUTPUT: CONCEPT ART ILLUSTRATION ONLY]
+      // 간결하고 명확한 시각적 장면 묘사만 포함
+      const prompt = `Webtoon illustration, manhwa style, clean lineart, cel-shading.
 
-STYLE: Professional concept art, Korean manhwa background art style, animation keyframe, storyboard visual.
+${sceneDesc}
 
-SCENE COMPOSITION: ${sceneDesc}
-
-${hasReferenceImages ? `CHARACTER REFERENCE: Match provided reference images exactly - same face structure, same hair, same proportions.` : ''}
-${characterDetails ? `\nCHARACTER DETAILS:\n${characterDetails}` : ''}
-${eraStyle ? `\nERA/SETTING: ${eraStyle}` : ''}
-${costumeStyle ? `\nCOSTUME: ${costumeStyle}` : ''}
+${characterDetails ? characterDetails : ''}
+${eraStyle ? `Setting: ${eraStyle}` : ''}
+${costumeStyle ? `Costume: ${costumeStyle}` : ''}
 ${historicalWarning}
 
-CAMERA: ${panel.cameraAngle || 'medium shot'}, cinematic framing.
-${feedback ? `\nART DIRECTION: ${feedback}` : ''}
-
-RENDER SPECIFICATION:
-- Concept art illustration with clean linework and cel-shading
-- Characters have correct human anatomy (two arms, two legs, five fingers per hand)
-- All surfaces are smooth, unmarked, and free of any overlay elements
-- Pure visual storytelling through imagery alone`;
+Camera: ${panel.cameraAngle || 'medium shot'}.
+${feedback ? `Style note: ${feedback}` : ''}`;
 
 
       // 패널에 등장하는 캐릭터들의 레퍼런스 이미지 수집 (최대 14개 - Gemini 3 Pro Image 지원)
@@ -256,22 +237,10 @@ RENDER SPECIFICATION:
         useCache: false,
       });
 
-      // 1단계: AI가 생성한 불필요한 텍스트 제거 (후처리)
-      addToast({ message: '이미지 후처리 중... (텍스트 감지/제거)', type: 'info' });
-      const postProcessed = await postProcessImage(result.imageData, {
-        useAI: true,
-        fallbackToBlur: true,
-      });
-
-      if (postProcessed.hadText) {
-        console.log('텍스트가 감지되어 제거되었습니다.');
-      }
-
-      // 2단계: 대사가 있으면 Canvas로 한글 텍스트 합성
-      let finalImageData = postProcessed.imageData;
+      // 대사가 있으면 Canvas로 한글 텍스트 합성 (이미지 상단에)
+      let finalImageData = result.imageData;
       if (dialogueText) {
         try {
-          addToast({ message: '대사를 합성하고 있습니다...', type: 'info' });
           const bubbleStyle = panel.dialogues?.[0]?.bubbleStyle;
           const validBubbleStyle = (bubbleStyle === 'thought' || bubbleStyle === 'shout') ? bubbleStyle : 'normal';
           finalImageData = await renderSpeechBubble(result.imageData, {
@@ -282,7 +251,6 @@ RENDER SPECIFICATION:
           });
         } catch (err) {
           console.error('Speech bubble rendering failed:', err);
-          // 합성 실패해도 원본 이미지는 사용
         }
       }
 
