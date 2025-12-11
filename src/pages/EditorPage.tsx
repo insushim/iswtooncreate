@@ -221,8 +221,99 @@ const EditorPage: React.FC = () => {
     );
   }
 
+  // 현재 에피소드 인덱스
+  const currentEpisodeIndex = currentProject?.episodes.findIndex(e => e.id === selectedEpisodeId) ?? -1;
+  const hasPrevEpisode = currentEpisodeIndex > 0;
+  const hasNextEpisode = currentEpisodeIndex < (currentProject?.episodes.length ?? 0) - 1;
+
+  // 이전/다음 에피소드로 이동
+  const goToPrevEpisode = () => {
+    if (hasPrevEpisode && currentProject) {
+      const prevEpisode = currentProject.episodes[currentEpisodeIndex - 1];
+      setSelectedEpisode(prevEpisode.id);
+      if (prevEpisode.panels.length > 0) {
+        setSelectedPanel(prevEpisode.panels[0].id);
+      } else {
+        setSelectedPanel(null);
+      }
+    }
+  };
+
+  const goToNextEpisode = () => {
+    if (hasNextEpisode && currentProject) {
+      const nextEpisode = currentProject.episodes[currentEpisodeIndex + 1];
+      setSelectedEpisode(nextEpisode.id);
+      if (nextEpisode.panels.length > 0) {
+        setSelectedPanel(nextEpisode.panels[0].id);
+      } else {
+        setSelectedPanel(null);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
+      {/* Top Navigation Bar */}
+      <div className="bg-gray-800 border-b border-gray-700 px-4 py-2 flex items-center justify-between">
+        {/* 왼쪽: 뒤로가기 + 프로젝트 정보 */}
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/dashboard')}
+            className="text-gray-400 hover:text-white"
+          >
+            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            대시보드
+          </Button>
+          <div className="text-gray-400">|</div>
+          <h1 className="text-white font-bold">{currentProject.title}</h1>
+        </div>
+
+        {/* 중앙: 에피소드 네비게이션 */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={goToPrevEpisode}
+            disabled={!hasPrevEpisode}
+            className={!hasPrevEpisode ? 'opacity-50 cursor-not-allowed' : ''}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Button>
+
+          <div className="bg-gray-700 rounded-lg px-4 py-2 min-w-[200px] text-center">
+            <span className="text-purple-400 font-bold">
+              {currentEpisode ? `${currentEpisode.episodeNumber}화` : '에피소드 선택'}
+            </span>
+            {currentEpisode && (
+              <span className="text-gray-400 ml-2 text-sm">
+                / {currentProject.episodes.length}화
+              </span>
+            )}
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={goToNextEpisode}
+            disabled={!hasNextEpisode}
+            className={!hasNextEpisode ? 'opacity-50 cursor-not-allowed' : ''}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Button>
+        </div>
+
+        {/* 오른쪽: 빈 공간 (균형) */}
+        <div className="w-32"></div>
+      </div>
+
       {/* Toolbar */}
       <EditorToolbar
         projectTitle={currentProject.title}
