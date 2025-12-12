@@ -18,6 +18,8 @@ const EditorPage: React.FC = () => {
   const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingPanels, setIsGeneratingPanels] = useState(false);
+  const [showMissingPanelModal, setShowMissingPanelModal] = useState(false);
+  const [missingPanelNumbers, setMissingPanelNumbers] = useState<number[]>([]);
 
   useEffect(() => {
     const loadProject = async () => {
@@ -59,32 +61,71 @@ const EditorPage: React.FC = () => {
       const eraInfo = worldInfo?.era || '고대 한국';
       const settingInfo = worldInfo?.setting || '역사물';
 
+      // 캐릭터 정보 수집 (일관성 유지용)
+      const characterInfos = currentProject.characters.map(c => {
+        const gender = c.gender === 'female' ? 'woman' : c.gender === 'male' ? 'man' : 'person';
+        const hairColor = c.appearance?.hairColor || 'black';
+        const hairStyle = c.appearance?.hairStyle || 'long';
+        const eyeColor = c.appearance?.eyeColor || 'dark brown';
+        const outfit = c.appearance?.defaultOutfit || '';
+        const features = c.appearance?.distinguishingFeatures?.join(', ') || '';
+        return `${c.name}: ${gender}, ${hairColor} ${hairStyle} hair, ${eyeColor} eyes${outfit ? `, wearing ${outfit}` : ''}${features ? `, features: ${features}` : ''}`;
+      }).join('\n');
+
+      // 장소 정보 수집
+      const locationInfos = worldInfo?.mainLocations?.map((loc: any) =>
+        `${loc.name}: ${loc.description || ''}`
+      ).join('\n') || '';
+
       // 60~80개 패널 생성 (웹툰 1화 적정 분량)
       const targetPanelCount = 70;
 
-      const prompt = `웹툰 ${currentEpisode.episodeNumber}화 콘티. JSON으로 패널 ${targetPanelCount}개 생성.
+      const prompt = `웹툰 ${currentEpisode.episodeNumber}화 패널 ${targetPanelCount}개 생성. JSON 출력.
 
-줄거리: ${currentEpisode.summary}
-세계관: ${eraInfo}, ${settingInfo}
+스토리: ${currentEpisode.summary}
+배경: ${eraInfo}, ${settingInfo}
+주요 이벤트: ${currentEpisode.keyEvents?.join(', ') || ''}
 
-출력형식:
+캐릭터:
+${characterInfos}
+
+장소:
+${locationInfos}
+
+⚠️⚠️⚠️ 매우 중요 - 반드시 이 형식으로 출력 ⚠️⚠️⚠️
+
 {"panels":[
-{"n":1,"img":"영어로 그림설명","dialog":"한국어 대사"},
-{"n":2,"img":"영어로 그림설명","dialog":""}
+{"n":1,"size":"full","camera":"wide-shot","mood":"mysterious","lighting":"night","img":"[LOCATION: 어두운 사무실, 모니터 불빛만 비침] [CHARACTER: 하늘, 20대 여성, 검은 긴 머리 흐트러짐, 다크서클, 후드티] [ATMOSPHERE: 새벽 3시, 차가운 모니터 빛]","dialog":""},
+{"n":2,"size":"small","camera":"extreme-close-up","mood":"tense","lighting":"dramatic","img":"[FOCUS: 디지털 시계 03:42 AM]","dialog":""},
+{"n":3,"size":"medium","camera":"medium-shot","mood":"sad","lighting":"indoor","img":"[CHARACTER: 하늘, 지친 표정으로 키보드 타이핑]","dialog":"젠장..."}
 ]}
 
+📌 각 패널에 반드시 포함할 6개 필드:
+- "n": 패널 번호 (1-${targetPanelCount})
+- "size": full/large/medium/small/wide 중 하나
+- "camera": close-up/extreme-close-up/medium-shot/wide-shot/bird-eye/worm-eye/dutch-angle/over-shoulder 중 하나
+- "mood": happy/sad/angry/romantic/tense/mysterious/comedic/peaceful/dramatic/nostalgic 중 하나
+- "lighting": natural/sunset/night/indoor/dramatic/soft/backlight/neon 중 하나
+- "img": 영어로 상세한 장면 설명
+- "dialog": 한국어 대사 또는 ""
+
+📊 다양하게 사용해야 할 비율:
+- size: full 10개, large 15개, medium 30개, small 15개
+- camera: 다양한 앵글을 씬에 맞게 사용
+- mood: 장면 감정에 맞게 변경
+- lighting: 시간대와 분위기에 맞게 변경
+
+🎨 img 필드 작성법 (영어로):
+[LOCATION: 장소 상세 - 건물, 가구, 소품]
+[CHARACTER: 이름, 성별, 나이, 머리색+스타일, 눈색, 표정, 포즈, 의상 상세]
+[ATMOSPHERE: 조명 방향, 그림자, 날씨]
+
 규칙:
-1. 반드시 ${targetPanelCount}개 패널 생성 (웹툰 1화 분량)
-2. img = 영어로만! 그림 설명 (구도, 표정, 배경 상세히)
-3. dialog = 한국어 대사만. 캐릭터가 실제로 말하는 것!
-4. dialog에 장면설명 절대 넣지마
-5. 대사 없는 장면은 dialog를 빈칸 ""으로
-6. 환생/빙의 스토리면 처음은 현대, 중간에 고대로 전환
-7. 다양한 앵글 사용: 클로즈업, 미디엄샷, 와이드샷, 버드아이 등
-8. 감정 표현 장면은 클로즈업으로
-9. 액션/배경 설명은 와이드샷으로
-10. 대화 장면은 미디엄샷으로
-11. 1~${targetPanelCount}번까지 순서대로 생성`;
+1. 정확히 ${targetPanelCount}개 패널 생성 (1-${targetPanelCount})
+2. 모든 패널에 size, camera, mood, lighting 필드 필수!
+3. img는 영어로만, dialog는 한국어로만
+4. 대사 없는 장면은 dialog를 "" 로
+5. JSON만 출력, { 로 시작`;
 
       const response = await geminiService.generateText(prompt, {
         temperature: 0.8,
@@ -127,11 +168,37 @@ const EditorPage: React.FC = () => {
         }
         const charName = panelData.who || panelData.character || '';
 
+        // AI가 생성한 패널 속성 추출 (기본값 포함)
+        const panelSize = panelData.size || 'medium';
+        const cameraAngle = panelData.camera || 'medium-shot';
+        const panelMood = panelData.mood || 'peaceful';
+        const panelLighting = panelData.lighting || 'natural';
+
+        // 디버깅: AI가 반환한 원본 값 확인
+        console.log(`[Panel ${panelNum}] AI Values - size: ${panelData.size}, camera: ${panelData.camera}, mood: ${panelData.mood}, lighting: ${panelData.lighting}`);
+
+        // 유효한 값인지 검증
+        const validSizes = ['full', 'large', 'medium', 'small', 'wide', 'tall'];
+        const validCameras = ['close-up', 'medium-shot', 'wide-shot', 'extreme-close-up', 'bird-eye', 'worm-eye', 'dutch-angle', 'over-shoulder', 'pov'];
+        const validMoods = ['happy', 'sad', 'angry', 'romantic', 'tense', 'mysterious', 'comedic', 'peaceful', 'dramatic', 'nostalgic'];
+        const validLighting = ['natural', 'sunset', 'night', 'indoor', 'dramatic', 'soft', 'backlight', 'neon'];
+
+        const finalSize = validSizes.includes(panelSize) ? panelSize : 'medium';
+        const finalCamera = validCameras.includes(cameraAngle) ? cameraAngle : 'medium-shot';
+        const finalMood = validMoods.includes(panelMood) ? panelMood : 'peaceful';
+        const finalLighting = validLighting.includes(panelLighting) ? panelLighting : 'natural';
+
+        // 시간대 결정 (조명 기반)
+        let timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night' = 'afternoon';
+        if (panelLighting === 'night') timeOfDay = 'night';
+        else if (panelLighting === 'sunset') timeOfDay = 'evening';
+        else if (panelLighting === 'soft') timeOfDay = 'morning';
+
         const panel: Omit<Panel, 'id'> = {
           episodeId: currentEpisode.id,
           panelNumber: panelNum,
-          size: 'medium',
-          cameraAngle: 'medium-shot',
+          size: finalSize as any,
+          cameraAngle: finalCamera as any,
           composition: imgDesc,
           characters: charName ? [{
             characterId: '',
@@ -147,11 +214,11 @@ const EditorPage: React.FC = () => {
           background: {
             locationName: '',
             description: imgDesc,
-            timeOfDay: 'afternoon',
+            timeOfDay,
             weather: '',
-            mood: '',
+            mood: finalMood,
             focusPoint: '',
-            depth: 'medium',
+            depth: finalSize === 'wide' || finalCamera === 'wide-shot' ? 'deep' : finalCamera === 'close-up' || finalCamera === 'extreme-close-up' ? 'shallow' : 'medium',
           },
           dialogues: dialogue ? [{
             id: `dlg-${Date.now()}-${panelNum}`,
@@ -163,8 +230,8 @@ const EditorPage: React.FC = () => {
             fontSize: 'medium',
           }] : [],
           sfx: [],
-          mood: '',
-          lighting: 'natural',
+          mood: finalMood,
+          lighting: finalLighting,
           visualPrompt: imgDesc,
           status: 'pending',
         };
@@ -200,6 +267,220 @@ const EditorPage: React.FC = () => {
     }
     setSelectedPanel(null);
     addToast({ message: '모든 패널이 삭제되었습니다', type: 'success' });
+  };
+
+  // 빠진 패널 번호 찾기
+  const findMissingPanels = (): number[] => {
+    if (!currentEpisode || currentEpisode.panels.length === 0) return [];
+
+    const existingNumbers = new Set(currentEpisode.panels.map(p => p.panelNumber));
+    const maxPanel = Math.max(...existingNumbers);
+    const missing: number[] = [];
+
+    for (let i = 1; i <= maxPanel; i++) {
+      if (!existingNumbers.has(i)) {
+        missing.push(i);
+      }
+    }
+
+    return missing;
+  };
+
+  // 빠진 패널 확인 및 모달 표시
+  const checkMissingPanels = () => {
+    const missing = findMissingPanels();
+    if (missing.length > 0) {
+      setMissingPanelNumbers(missing);
+      setShowMissingPanelModal(true);
+    } else {
+      addToast({ message: '빠진 패널이 없습니다!', type: 'success' });
+    }
+  };
+
+  // 빠진 패널만 생성
+  const generateMissingPanels = async (panelNumbers: number[]) => {
+    if (!currentEpisode || !currentProject || panelNumbers.length === 0) return;
+
+    setIsGeneratingPanels(true);
+    setShowMissingPanelModal(false);
+    addToast({ message: `${panelNumbers.length}개 빠진 패널을 생성하고 있습니다...`, type: 'info' });
+
+    try {
+      // 세계관 정보
+      const worldInfo = currentProject.worldBuilding;
+      const eraInfo = worldInfo?.era || '고대 한국';
+      const settingInfo = worldInfo?.setting || '역사물';
+
+      // 캐릭터 정보 수집
+      const characterInfos = currentProject.characters.map(c => {
+        const gender = c.gender === 'female' ? 'woman' : c.gender === 'male' ? 'man' : 'person';
+        const hairColor = c.appearance?.hairColor || 'black';
+        const hairStyle = c.appearance?.hairStyle || 'long';
+        const eyeColor = c.appearance?.eyeColor || 'dark brown';
+        const outfit = c.appearance?.defaultOutfit || '';
+        return `${c.name}: ${gender}, ${hairColor} ${hairStyle} hair, ${eyeColor} eyes${outfit ? `, wearing ${outfit}` : ''}`;
+      }).join('\n');
+
+      // 앞뒤 패널 컨텍스트 수집
+      const getContextForPanel = (panelNum: number) => {
+        const prevPanel = currentEpisode.panels.find(p => p.panelNumber === panelNum - 1);
+        const nextPanel = currentEpisode.panels.find(p => p.panelNumber === panelNum + 1);
+
+        let context = '';
+        if (prevPanel) {
+          context += `Previous panel ${panelNum - 1}: ${prevPanel.composition?.slice(0, 100) || 'no description'}\n`;
+        }
+        if (nextPanel) {
+          context += `Next panel ${panelNum + 1}: ${nextPanel.composition?.slice(0, 100) || 'no description'}\n`;
+        }
+        return context;
+      };
+
+      // 빠진 패널들의 컨텍스트
+      const panelContexts = panelNumbers.map(num => {
+        return `Panel ${num} context:\n${getContextForPanel(num)}`;
+      }).join('\n\n');
+
+      const prompt = `빠진 패널만 생성. JSON 출력.
+
+스토리: ${currentEpisode.summary}
+배경: ${eraInfo}, ${settingInfo}
+
+캐릭터:
+${characterInfos}
+
+생성할 패널 번호: ${panelNumbers.join(', ')}
+
+앞뒤 문맥:
+${panelContexts}
+
+⚠️⚠️⚠️ 반드시 이 형식으로 출력 ⚠️⚠️⚠️
+
+{"panels":[
+{"n":${panelNumbers[0]},"size":"medium","camera":"close-up","mood":"tense","lighting":"dramatic","img":"[LOCATION: 장소] [CHARACTER: 이름, 머리색, 표정, 의상] [ATMOSPHERE: 조명]","dialog":"한국어 대사"}
+]}
+
+📌 각 패널에 반드시 포함할 6개 필드:
+- "n": 패널 번호
+- "size": full/large/medium/small/wide 중 하나
+- "camera": close-up/extreme-close-up/medium-shot/wide-shot/bird-eye/worm-eye/dutch-angle/over-shoulder 중 하나
+- "mood": happy/sad/angry/romantic/tense/mysterious/comedic/peaceful/dramatic/nostalgic 중 하나
+- "lighting": natural/sunset/night/indoor/dramatic/soft/backlight/neon 중 하나
+- "img": 영어로 장면 설명
+- "dialog": 한국어 대사 또는 ""
+
+규칙:
+1. 정확히 ${panelNumbers.join(', ')} 번 패널만 생성 (${panelNumbers.length}개)
+2. 모든 패널에 size, camera, mood, lighting 필드 필수!
+3. 앞뒤 패널과 자연스럽게 연결
+4. JSON만 출력`;
+
+      const response = await geminiService.generateText(prompt, {
+        temperature: 0.7,
+        maxTokens: 16000,
+        useCache: false,
+      });
+
+      const result = parseJsonResponse(response);
+
+      if (!result.panels || result.panels.length === 0) {
+        throw new Error('패널이 생성되지 않았습니다.');
+      }
+
+      // 유효한 값 목록
+      const validSizes = ['full', 'large', 'medium', 'small', 'wide', 'tall'];
+      const validCameras = ['close-up', 'medium-shot', 'wide-shot', 'extreme-close-up', 'bird-eye', 'worm-eye', 'dutch-angle', 'over-shoulder', 'pov'];
+      const validMoods = ['happy', 'sad', 'angry', 'romantic', 'tense', 'mysterious', 'comedic', 'peaceful', 'dramatic', 'nostalgic'];
+      const validLighting = ['natural', 'sunset', 'night', 'indoor', 'dramatic', 'soft', 'backlight', 'neon'];
+
+      // 패널 추가
+      let addedCount = 0;
+      for (const panelData of result.panels) {
+        const panelNum = panelData.n || panelData.panelNumber;
+
+        // 요청한 번호인지 확인
+        if (!panelNumbers.includes(panelNum)) {
+          console.log(`[Missing Panel] Skipping panel ${panelNum} - not in requested list`);
+          continue;
+        }
+
+        // 이미 존재하는지 확인
+        const exists = currentEpisode.panels.some(p => p.panelNumber === panelNum);
+        if (exists) {
+          console.log(`[Missing Panel] Panel ${panelNum} already exists, skipping`);
+          continue;
+        }
+
+        const imgDesc = panelData.img || panelData.sceneDescription || '';
+        let dialogue = panelData.dialog ?? panelData.dialogue ?? '';
+
+        // 영어 설명 필터링
+        const hasKorean = /[가-힣]/.test(dialogue);
+        const isEnglishDescription = !hasKorean && /^[a-zA-Z\s,.\-'":;!?]+$/.test(dialogue);
+        if (dialogue && isEnglishDescription) {
+          dialogue = '';
+        }
+
+        const panelSize = panelData.size || 'medium';
+        const cameraAngle = panelData.camera || 'medium-shot';
+        const panelMood = panelData.mood || 'peaceful';
+        const panelLighting = panelData.lighting || 'natural';
+
+        const finalSize = validSizes.includes(panelSize) ? panelSize : 'medium';
+        const finalCamera = validCameras.includes(cameraAngle) ? cameraAngle : 'medium-shot';
+        const finalMood = validMoods.includes(panelMood) ? panelMood : 'peaceful';
+        const finalLighting = validLighting.includes(panelLighting) ? panelLighting : 'natural';
+
+        let timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night' = 'afternoon';
+        if (panelLighting === 'night') timeOfDay = 'night';
+        else if (panelLighting === 'sunset') timeOfDay = 'evening';
+
+        const panel: Omit<Panel, 'id'> = {
+          episodeId: currentEpisode.id,
+          panelNumber: panelNum,
+          size: finalSize as any,
+          cameraAngle: finalCamera as any,
+          composition: imgDesc,
+          characters: [],
+          background: {
+            locationName: '',
+            description: imgDesc,
+            timeOfDay,
+            weather: '',
+            mood: finalMood,
+            focusPoint: '',
+            depth: 'medium',
+          },
+          dialogues: dialogue ? [{
+            id: `dlg-${Date.now()}-${panelNum}`,
+            text: dialogue,
+            type: 'speech',
+            bubbleStyle: 'normal',
+            position: { x: 50, y: 20 },
+            size: { width: 200, height: 80 },
+            fontSize: 'medium',
+          }] : [],
+          sfx: [],
+          mood: finalMood,
+          lighting: finalLighting,
+          visualPrompt: imgDesc,
+          status: 'pending',
+        };
+
+        await addPanel(currentEpisode.id, panel);
+        addedCount++;
+      }
+
+      // 프로젝트 다시 로드
+      await setCurrentProject(projectId!);
+
+      addToast({ message: `${addedCount}개 빠진 패널이 추가되었습니다!`, type: 'success' });
+    } catch (err) {
+      console.error('Missing panel generation failed:', err);
+      addToast({ message: '빠진 패널 생성에 실패했습니다. 다시 시도해주세요.', type: 'error' });
+    } finally {
+      setIsGeneratingPanels(false);
+    }
   };
 
   if (isLoading) {
@@ -483,6 +764,29 @@ const EditorPage: React.FC = () => {
                     </div>
                   </Card>
                 )}
+
+                {/* 패널이 있을 때 빠진 패널 확인 버튼 */}
+                {currentEpisode.panels.length > 0 && (
+                  <div className="mt-4 flex gap-2 justify-center">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={checkMissingPanels}
+                      disabled={isGeneratingPanels}
+                    >
+                      🔍 빠진 패널 확인
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={generatePanelsForEpisode}
+                      disabled={isGeneratingPanels}
+                      loading={isGeneratingPanels}
+                    >
+                      ➕ 패널 추가 생성
+                    </Button>
+                  </div>
+                )}
               </div>
             </>
           ) : (
@@ -513,19 +817,27 @@ const EditorPage: React.FC = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">패널 크기</label>
-                  <p className="text-white">{currentPanel.size}</p>
+                  <p className="text-white">{
+                    ({ full: '전체', large: '대형', medium: '중형', small: '소형', wide: '가로형', tall: '세로형', custom: '커스텀' } as Record<string, string>)[currentPanel.size] || currentPanel.size
+                  }</p>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">카메라 앵글</label>
-                  <p className="text-white">{currentPanel.cameraAngle}</p>
+                  <p className="text-white">{
+                    { 'close-up': '클로즈업', 'extreme-close-up': '익스트림 클로즈업', 'medium-shot': '미디엄샷', 'wide-shot': '와이드샷', 'bird-eye': '버드아이', 'worm-eye': '웜아이', 'dutch-angle': '더치앵글', 'over-shoulder': '오버숄더', 'pov': 'POV' }[currentPanel.cameraAngle] || currentPanel.cameraAngle
+                  }</p>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">분위기</label>
-                  <p className="text-white">{currentPanel.mood}</p>
+                  <p className="text-white">{
+                    { happy: '밝음 😊', sad: '슬픔 😢', angry: '분노 😠', romantic: '로맨틱 💕', tense: '긴장 😰', mysterious: '미스터리 🔮', comedic: '코믹 😂', peaceful: '평화 🌿', dramatic: '극적 🎭', nostalgic: '향수 🌅' }[currentPanel.mood] || currentPanel.mood || '없음'
+                  }</p>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">조명</label>
-                  <p className="text-white">{currentPanel.lighting}</p>
+                  <p className="text-white">{
+                    { natural: '자연광 ☀️', sunset: '석양 🌅', night: '야간 🌙', indoor: '실내 💡', dramatic: '극적 🎬', soft: '소프트 🌤️', backlight: '역광 ✨', neon: '네온 🌈' }[currentPanel.lighting] || currentPanel.lighting
+                  }</p>
                 </div>
 
                 {/* Dialogues */}
@@ -554,6 +866,59 @@ const EditorPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 빠진 패널 모달 */}
+      {showMissingPanelModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 border border-gray-700"
+          >
+            <h3 className="text-xl font-bold text-white mb-4">🔍 빠진 패널 발견</h3>
+
+            <p className="text-gray-400 mb-4">
+              다음 패널 번호가 빠져있습니다:
+            </p>
+
+            <div className="bg-gray-900 rounded-lg p-4 mb-4 max-h-48 overflow-y-auto">
+              <div className="flex flex-wrap gap-2">
+                {missingPanelNumbers.map(num => (
+                  <span
+                    key={num}
+                    className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-sm font-medium"
+                  >
+                    #{num}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-4">
+              총 {missingPanelNumbers.length}개의 패널이 빠져있습니다.
+              AI가 앞뒤 컨텍스트를 참고하여 빠진 패널을 생성합니다.
+            </p>
+
+            <div className="flex gap-3">
+              <Button
+                variant="primary"
+                className="flex-1"
+                onClick={() => generateMissingPanels(missingPanelNumbers)}
+                disabled={isGeneratingPanels}
+                loading={isGeneratingPanels}
+              >
+                빠진 패널 생성
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setShowMissingPanelModal(false)}
+              >
+                취소
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

@@ -51,6 +51,27 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
     setIsGenerating(true);
 
     try {
+      // 현재 에피소드 찾기
+      const currentEpisode = currentProject.episodes.find(ep =>
+        ep.panels.some(p => p.id === panel.id)
+      );
+      const currentPanelIndex = currentEpisode?.panels.findIndex(p => p.id === panel.id) ?? -1;
+
+      // 앞 5개 씬 참조 정보 수집 (일관성 유지용)
+      let previousScenesContext = '';
+      if (currentEpisode && currentPanelIndex > 0) {
+        const startIdx = Math.max(0, currentPanelIndex - 5);
+        const previousPanels = currentEpisode.panels.slice(startIdx, currentPanelIndex);
+
+        if (previousPanels.length > 0) {
+          const prevContexts = previousPanels.map((p, idx) => {
+            const chars = p.characters.map(c => c.characterName).join(', ');
+            return `Panel ${startIdx + idx + 1}: ${p.composition?.slice(0, 100) || 'no description'}${chars ? ` [Characters: ${chars}]` : ''} [Camera: ${p.cameraAngle}] [Mood: ${p.mood || 'neutral'}] [Lighting: ${p.lighting}]`;
+          }).join('\n');
+          previousScenesContext = `\n\nPREVIOUS PANELS CONTEXT (maintain visual consistency with these):\n${prevContexts}`;
+        }
+      }
+
       // 장면 설명 (영어만 사용)
       const sceneDesc = panel.composition || panel.background?.description || '';
 
@@ -158,22 +179,81 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
       // 대사는 Canvas로 합성하므로 AI는 말풍선을 그리지 않음
       const dialogueText = panel.dialogues?.[0]?.text || '';
 
+      // 패널 속성 정보
+      const panelMood = panel.mood || 'peaceful';
+      const panelLighting = panel.lighting || 'natural';
+      const panelSize = panel.size || 'medium';
+      const panelCamera = panel.cameraAngle || 'medium-shot';
+
+      // 조명 설명 매핑
+      const lightingDescriptions: Record<string, string> = {
+        natural: 'bright natural daylight, clear illumination',
+        sunset: 'warm golden hour lighting, orange and pink tones',
+        night: 'dark nighttime atmosphere with moonlight, blue shadows',
+        indoor: 'soft indoor artificial lighting, warm ambient',
+        dramatic: 'high contrast dramatic lighting, deep shadows, strong highlights',
+        soft: 'soft diffused lighting, gentle shadows',
+        backlight: 'strong backlight creating silhouette effect, rim lighting',
+        neon: 'colorful neon glow, cyberpunk atmosphere',
+      };
+
+      // 분위기 설명 매핑
+      const moodDescriptions: Record<string, string> = {
+        happy: 'bright cheerful atmosphere, warm colors',
+        sad: 'melancholic mood, muted colors, somber tone',
+        angry: 'intense aggressive mood, sharp contrasts',
+        romantic: 'soft romantic atmosphere, warm pink tones',
+        tense: 'suspenseful tension, dramatic shadows',
+        mysterious: 'enigmatic mysterious mood, dark atmosphere',
+        comedic: 'light humorous tone, exaggerated expressions',
+        peaceful: 'calm serene atmosphere, gentle lighting',
+        dramatic: 'intense dramatic mood, high contrast',
+        nostalgic: 'warm nostalgic feeling, sepia tones',
+      };
+
+      // 카메라 앵글 설명 매핑
+      const cameraDescriptions: Record<string, string> = {
+        'close-up': 'close-up shot focusing on face and expression',
+        'extreme-close-up': 'extreme close-up on eyes or specific detail',
+        'medium-shot': 'medium shot showing upper body',
+        'wide-shot': 'wide establishing shot showing full scene with background',
+        'bird-eye': 'bird\'s eye view from above looking down',
+        'worm-eye': 'low angle worm\'s eye view looking up',
+        'dutch-angle': 'tilted dutch angle creating unease',
+        'over-shoulder': 'over the shoulder perspective',
+        'pov': 'first person point of view',
+      };
+
+      const lightingDesc = lightingDescriptions[panelLighting] || 'natural lighting';
+      const moodDesc = moodDescriptions[panelMood] || 'neutral atmosphere';
+      const cameraDesc = cameraDescriptions[panelCamera] || 'medium shot';
+
       // 웹툰 스타일 이미지 생성용 프롬프트
       // 피드백이 있으면 최우선으로 적용
       const feedbackSection = feedback
         ? `\n\n**CRITICAL USER FEEDBACK (MUST APPLY)**: ${feedback}\nThis feedback overrides any conflicting settings above.`
         : '';
 
-      const prompt = `Webtoon illustration, manhwa style, clean lineart, cel-shading.
+      const prompt = `Webtoon illustration, Korean manhwa style, clean detailed lineart, cel-shading, professional quality.
 
+SCENE DESCRIPTION:
 ${sceneDesc}
 
-${characterDetails ? characterDetails : ''}
-${eraStyle ? `Setting: ${eraStyle}` : ''}
-${costumeStyle ? `Costume: ${costumeStyle}` : ''}
-${historicalWarning}
+VISUAL STYLE:
+- Panel type: ${panelSize} panel
+- Camera: ${cameraDesc}
+- Lighting: ${lightingDesc}
+- Mood/Atmosphere: ${moodDesc}
 
-Camera: ${panel.cameraAngle || 'medium shot'}.${feedbackSection}`;
+${characterDetails ? `CHARACTERS IN SCENE:\n${characterDetails}` : ''}
+
+${eraStyle ? `SETTING/ERA: ${eraStyle}` : ''}
+${costumeStyle ? `COSTUME STYLE: ${costumeStyle}` : ''}
+${historicalWarning}
+${previousScenesContext}
+${feedbackSection}
+
+IMPORTANT: Maintain visual consistency with character appearances. Use ${cameraDesc} composition. Create ${moodDesc} with ${lightingDesc}.`;
 
       console.log('[PanelEditor] Generated prompt:', prompt);
 
@@ -235,16 +315,15 @@ Camera: ${panel.cameraAngle || 'medium shot'}.${feedbackSection}`;
         }
       }
 
-      // 3. 이전 패널의 이미지 (화 내 일관성)
-      const currentEpisode = currentProject.episodes.find(ep =>
-        ep.panels.some(p => p.id === panel.id)
-      );
-      if (currentEpisode) {
-        const currentPanelIndex = currentEpisode.panels.findIndex(p => p.id === panel.id);
-        // 바로 이전 패널의 이미지 참조 (연속성)
-        if (currentPanelIndex > 0) {
-          const prevPanel = currentEpisode.panels[currentPanelIndex - 1];
-          if (prevPanel.generatedImage?.imageData) {
+      // 3. 이전 패널의 이미지 (화 내 일관성) - 최대 5개 참조
+      if (currentEpisode && currentPanelIndex > 0) {
+        const startIdx = Math.max(0, currentPanelIndex - 5);
+        const previousPanels = currentEpisode.panels.slice(startIdx, currentPanelIndex);
+
+        // 가장 최근 패널부터 역순으로 추가 (최신이 더 중요)
+        for (let i = previousPanels.length - 1; i >= 0; i--) {
+          const prevPanel = previousPanels[i];
+          if (prevPanel.generatedImage?.imageData && allRefImages.length < 12) {
             allRefImages.push(prevPanel.generatedImage.imageData);
           }
         }
@@ -331,6 +410,11 @@ Camera: ${panel.cameraAngle || 'medium shot'}.${feedbackSection}`;
   // 대사 텍스트
   const dialogueText = panel.dialogues?.[0]?.text || '';
 
+  // 한글 변환 맵
+  const cameraLabels: Record<string, string> = { 'close-up': '클로즈업', 'extreme-close-up': '익스트림', 'medium-shot': '미디엄', 'wide-shot': '와이드', 'bird-eye': '버드아이', 'worm-eye': '웜아이', 'dutch-angle': '더치', 'over-shoulder': '오버숄더', 'pov': 'POV' };
+  const moodLabels: Record<string, string> = { happy: '밝음', sad: '슬픔', angry: '분노', romantic: '로맨틱', tense: '긴장', mysterious: '미스터리', comedic: '코믹', peaceful: '평화', dramatic: '극적', nostalgic: '향수' };
+  const lightingLabels: Record<string, string> = { natural: '자연광', sunset: '석양', night: '야간', indoor: '실내', dramatic: '극적', soft: '소프트', backlight: '역광', neon: '네온' };
+
   return (
     <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden">
       {/* Panel Header */}
@@ -340,6 +424,22 @@ Camera: ${panel.cameraAngle || 'medium shot'}.${feedbackSection}`;
           {panel.characters?.[0]?.characterName && (
             <span className="text-sm text-gray-300">{panel.characters[0].characterName}</span>
           )}
+          {/* 패널 속성 뱃지 */}
+          <div className="flex gap-1.5">
+            <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full">
+              {cameraLabels[panel.cameraAngle] || panel.cameraAngle}
+            </span>
+            {panel.mood && (
+              <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded-full">
+                {moodLabels[panel.mood] || panel.mood}
+              </span>
+            )}
+            {panel.lighting && (
+              <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">
+                {lightingLabels[panel.lighting] || panel.lighting}
+              </span>
+            )}
+          </div>
         </div>
         <Dropdown
           options={panelSizes}
