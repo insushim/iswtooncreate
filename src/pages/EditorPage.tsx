@@ -269,15 +269,16 @@ ${locationInfos}
     addToast({ message: '모든 패널이 삭제되었습니다', type: 'success' });
   };
 
-  // 빠진 패널 번호 찾기
+  // 빠진 패널 번호 찾기 (목표 패널 수: 70개)
   const findMissingPanels = (): number[] => {
-    if (!currentEpisode || currentEpisode.panels.length === 0) return [];
+    if (!currentEpisode) return [];
 
+    const targetPanelCount = 70; // 목표 패널 수
     const existingNumbers = new Set(currentEpisode.panels.map(p => p.panelNumber));
-    const maxPanel = Math.max(...existingNumbers);
     const missing: number[] = [];
 
-    for (let i = 1; i <= maxPanel; i++) {
+    // 1번부터 목표 개수까지 확인
+    for (let i = 1; i <= targetPanelCount; i++) {
       if (!existingNumbers.has(i)) {
         missing.push(i);
       }
@@ -779,11 +780,19 @@ ${panelContexts}
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={generatePanelsForEpisode}
+                      onClick={() => {
+                        const missing = findMissingPanels();
+                        if (missing.length > 0) {
+                          setMissingPanelNumbers(missing);
+                          setShowMissingPanelModal(true);
+                        } else {
+                          addToast({ message: '이미 70개 패널이 모두 있습니다!', type: 'success' });
+                        }
+                      }}
                       disabled={isGeneratingPanels}
                       loading={isGeneratingPanels}
                     >
-                      ➕ 패널 추가 생성
+                      ➕ 패널 추가 생성 ({70 - (currentEpisode?.panels.length || 0)}개 남음)
                     </Button>
                   </div>
                 )}
