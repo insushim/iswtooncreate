@@ -57,7 +57,7 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
       );
       const currentPanelIndex = currentEpisode?.panels.findIndex(p => p.id === panel.id) ?? -1;
 
-      // 앞 5개 씬 참조 정보 수집 (일관성 유지용)
+      // 앞 5개 씬 참조 정보 수집 (일관성 유지용) - 캐릭터 외모 상세 포함
       let previousScenesContext = '';
       if (currentEpisode && currentPanelIndex > 0) {
         const startIdx = Math.max(0, currentPanelIndex - 5);
@@ -65,10 +65,36 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
 
         if (previousPanels.length > 0) {
           const prevContexts = previousPanels.map((p, idx) => {
-            const chars = p.characters.map(c => c.characterName).join(', ');
-            return `Panel ${startIdx + idx + 1}: ${p.composition?.slice(0, 100) || 'no description'}${chars ? ` [Characters: ${chars}]` : ''} [Camera: ${p.cameraAngle}] [Mood: ${p.mood || 'neutral'}] [Lighting: ${p.lighting}]`;
+            // 각 캐릭터의 상세 외모 정보 수집
+            const charDetails = p.characters.map(c => {
+              const fullChar = currentProject.characters.find(
+                ch => ch.name === c.characterName || ch.koreanName === c.characterName
+              );
+              if (fullChar) {
+                const hairColor = fullChar.appearance?.hairColor || 'black';
+                const hairStyle = fullChar.appearance?.hairStyle || '';
+                const features = fullChar.appearance?.distinguishingFeatures || [];
+                const hasGlasses = features.some(f => /안경|glasses/i.test(f));
+                const hasTiedHair = /묶|ponytail|bun|tied|updo/i.test(hairStyle);
+                const hasShortHair = /단발|short|bob/i.test(hairStyle);
+                const hasMessyHair = /흐트러|messy|disheveled|unkempt/i.test(hairStyle);
+
+                let hairDesc = `${hairColor} ${hairStyle} hair`;
+                if (hasTiedHair) hairDesc += ' (TIED UP)';
+                if (hasShortHair) hairDesc += ' (SHORT)';
+                if (hasMessyHair) hairDesc += ' (MESSY/DISHEVELED)';
+
+                return `${c.characterName}: ${hairDesc}${hasGlasses ? ', WEARING GLASSES' : ''}`;
+              }
+              return c.characterName;
+            }).join('; ');
+
+            return `Panel ${startIdx + idx + 1}: ${p.composition?.slice(0, 100) || 'no description'} [Characters: ${charDetails}] [Camera: ${p.cameraAngle}] [Mood: ${p.mood || 'neutral'}]`;
           }).join('\n');
-          previousScenesContext = `\n\nPREVIOUS PANELS CONTEXT (maintain visual consistency with these):\n${prevContexts}`;
+          previousScenesContext = `\n\nPREVIOUS PANELS CONTEXT (CRITICAL - maintain EXACT visual consistency):
+${prevContexts}
+
+⚠️ HAIRSTYLE CONSISTENCY: If a character has tied hair/ponytail/bun in previous panels, they MUST have the SAME hairstyle. If they wear glasses, they MUST still wear glasses. Do NOT change hairstyles or accessories between panels unless the story explicitly shows them changing.`;
         }
       }
 
@@ -179,8 +205,25 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
               ? `imposing ${clothing}, dark tones`
               : clothing;
 
+          // 안경 착용 여부 확인
+          const featuresList = fullCharacter.appearance?.distinguishingFeatures || [];
+          const hasGlasses = featuresList.some(f => /안경|glasses/i.test(f));
+          const glassesNote = hasGlasses ? ', MUST BE WEARING GLASSES' : '';
+
+          // 머리스타일 상세 분석
+          let hairStyleNote = '';
+          if (/묶|ponytail|bun|tied|updo|올린/i.test(hairStyle)) {
+            hairStyleNote = ' (HAIR TIED UP/PONYTAIL - NOT loose)';
+          } else if (/단발|short|bob|숏/i.test(hairStyle)) {
+            hairStyleNote = ' (SHORT HAIR - above shoulders)';
+          } else if (/흐트러|messy|disheveled|unkempt|헝클/i.test(hairStyle)) {
+            hairStyleNote = ' (MESSY/DISHEVELED hair)';
+          } else if (/긴|long|롱/i.test(hairStyle)) {
+            hairStyleNote = ' (LONG flowing hair)';
+          }
+
           // 더 상세한 캐릭터 설명으로 일관성 강화
-          return `[CHARACTER: ${fullCharacter.name}] ${gender}, exactly ${age} years old, MUST have ${hairColor} ${hairStyle} hair, ${eyeColor} ${eyeShape} eyes, ${skinTone} skin, ${faceShape} face, ${bodyType} body${height ? `, ${height}` : ''}, wearing ${roleBasedClothing}${features ? `. Distinctive features: ${features}` : ''}. CRITICAL: Keep this character's face and appearance EXACTLY consistent with reference image provided.`;
+          return `[CHARACTER: ${fullCharacter.name}] ${gender}, exactly ${age} years old, MUST have ${hairColor} ${hairStyle} hair${hairStyleNote}, ${eyeColor} ${eyeShape} eyes${glassesNote}, ${skinTone} skin, ${faceShape} face, ${bodyType} body${height ? `, ${height}` : ''}, wearing ${roleBasedClothing}${features ? `. Distinctive features: ${features}` : ''}. CRITICAL: Keep this character's face, hairstyle, and accessories (especially glasses) EXACTLY consistent with reference image provided.`;
         }
         return isHistorical ? 'Korean person in traditional hanbok, period-accurate clothing' : 'Korean person in modern clothing';
       }).join('\n');
