@@ -358,18 +358,27 @@ DO NOT modify ANY character appearance between panels!`;
         ? `\n\n**CRITICAL USER FEEDBACK (MUST APPLY)**: ${feedback}\nThis feedback overrides any conflicting settings above.`
         : '';
 
-      // 장면 설명에서 캐릭터가 필요 없는 장면인지 감지
-      const isNoCharacterScene = /\[LOCATION:.*\](?!.*\[CHARACTER)|\[FOCUS:(?!.*person|.*face|.*eye|.*hand).*\]|\[SCENE:.*darkness|.*black|.*fade\]|cityscape|skyline|landscape|establishing shot|background only|no character|환경샷|배경만|도시 전경|하늘|빌딩|건물만/i.test(sceneDesc);
+      // 장면 설명에서 캐릭터가 명시적으로 있는지 확인
+      const hasCharacterInScene = /\[CHARACTER:/i.test(sceneDesc);
+
+      // 캐릭터가 없고, 배경/환경만 있는 장면인지 감지
+      const isBackgroundOnlyScene = !hasCharacterInScene && (
+        /\[LOCATION:.*\]$/i.test(sceneDesc.trim()) ||  // LOCATION만 있는 경우
+        /\[SCENE:.*darkness|.*black|.*fade|.*transition\]/i.test(sceneDesc) ||  // 전환 장면
+        /\[FOCUS:(?!.*person|.*face|.*eye|.*hand|.*finger).*\]/i.test(sceneDesc) ||  // 사물 포커스
+        /cityscape|skyline|landscape|establishing shot|background only|no character/i.test(sceneDesc) ||
+        /환경샷|배경만|도시 전경|하늘만|빌딩만|건물만|풍경/i.test(sceneDesc)
+      );
 
       // 캐릭터가 없거나 배경만 있는 장면인 경우
-      const shouldExcludeCharacters = isNoCharacterScene && panel.characters.length === 0;
+      const shouldExcludeCharacters = isBackgroundOnlyScene && panel.characters.length === 0;
 
       // 캐릭터 제외 시 경고 추가
       const noCharacterWarning = shouldExcludeCharacters
         ? '\n\n⚠️ THIS IS A BACKGROUND/ENVIRONMENT SHOT - DO NOT draw any people, characters, or human figures. Focus ONLY on the environment, scenery, and atmosphere.'
         : '';
 
-      console.log('[PanelEditor] Scene analysis - isNoCharacterScene:', isNoCharacterScene, 'shouldExcludeCharacters:', shouldExcludeCharacters);
+      console.log('[PanelEditor] Scene analysis - hasCharacterInScene:', hasCharacterInScene, 'isBackgroundOnlyScene:', isBackgroundOnlyScene, 'shouldExcludeCharacters:', shouldExcludeCharacters);
 
       const prompt = `Webtoon illustration, Korean manhwa style, clean detailed lineart, cel-shading, professional quality.
 
