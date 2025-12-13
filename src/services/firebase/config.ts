@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 // 기본 Firebase 설정
 const DEFAULT_FIREBASE_CONFIG = {
@@ -29,6 +30,7 @@ const getFirebaseConfig = () => {
 let app: ReturnType<typeof initializeApp> | null = null;
 let auth: ReturnType<typeof getAuth> | null = null;
 let db: ReturnType<typeof getFirestore> | null = null;
+let storage: ReturnType<typeof getStorage> | null = null;
 let googleProvider: GoogleAuthProvider | null = null;
 
 export const initializeFirebase = () => {
@@ -39,6 +41,7 @@ export const initializeFirebase = () => {
     app = initializeApp(config);
     auth = getAuth(app);
     db = getFirestore(app);
+    storage = getStorage(app);
     googleProvider = new GoogleAuthProvider();
     return true;
   } catch (error) {
@@ -68,6 +71,13 @@ export const getGoogleProvider = () => {
   return googleProvider;
 };
 
+export const getFirebaseStorage = () => {
+  if (!storage) {
+    initializeFirebase();
+  }
+  return storage;
+};
+
 export const isFirebaseConfigured = () => {
   // 기본값이 있으므로 항상 true
   return true;
@@ -86,6 +96,7 @@ export const saveFirebaseConfig = (config: {
   app = null;
   auth = null;
   db = null;
+  storage = null;
   googleProvider = null;
   return initializeFirebase();
 };
