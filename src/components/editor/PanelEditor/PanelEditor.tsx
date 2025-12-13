@@ -666,7 +666,7 @@ REMINDER: NO TEXT, NO LETTERS, NO SPEECH BUBBLES - pure illustration only.`;
             </div>
 
             <div>
-              <label className="block text-xs text-gray-400 mb-1">대사 수정</label>
+              <label className="block text-xs text-gray-400 mb-1">대사 수정 <span className="text-gray-500">(줄바꿈: \n 또는 엔터)</span></label>
               <textarea
                 value={dialogueText}
                 onChange={(e) => {
@@ -675,9 +675,9 @@ REMINDER: NO TEXT, NO LETTERS, NO SPEECH BUBBLES - pure illustration only.`;
                     : [{ id: `dlg-${Date.now()}`, text: e.target.value, type: 'speech' as const, bubbleStyle: 'normal' as const, position: { x: 50, y: 20 }, size: { width: 200, height: 80 }, fontSize: 'medium' as const }];
                   onUpdate({ dialogues: newDialogues });
                 }}
-                rows={2}
+                rows={3}
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm resize-none"
-                placeholder="캐릭터 대사..."
+                placeholder="캐릭터 대사를 입력하세요..."
               />
             </div>
           </div>

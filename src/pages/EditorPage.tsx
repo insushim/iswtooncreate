@@ -41,10 +41,12 @@ const EditorPage: React.FC = () => {
   const currentEpisode = currentProject?.episodes.find((e) => e.id === selectedEpisodeId);
   const currentPanel = currentEpisode?.panels.find((p) => p.id === selectedPanelId);
 
-  const handlePanelUpdate = async (panelId: string, updates: Partial<Panel>) => {
+  const handlePanelUpdate = async (panelId: string, updates: Partial<Panel>, showToast = false) => {
     if (selectedEpisodeId) {
       await updatePanel(selectedEpisodeId, panelId, updates);
-      addToast({ message: '패널이 업데이트되었습니다', type: 'success' });
+      if (showToast) {
+        addToast({ message: '패널이 업데이트되었습니다', type: 'success' });
+      }
     }
   };
 
