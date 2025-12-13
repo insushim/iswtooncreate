@@ -74,17 +74,19 @@ export const Timeline: React.FC<TimelineProps> = ({
 
             {/* Delete Button */}
             {onDeletePanel && (
-              <div
+              <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   if (confirm(`패널 ${panel.panelNumber}을 삭제하시겠습니까?`)) {
                     onDeletePanel(panel.id);
                   }
                 }}
-                className="absolute top-1 right-1 w-5 h-5 rounded bg-red-500/80 hover:bg-red-500 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-1 right-1 w-5 h-5 rounded bg-red-500/80 hover:bg-red-500 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity z-10"
               >
-                <span className="text-white text-xs">✕</span>
-              </div>
+                <span className="text-white text-xs font-bold">✕</span>
+              </button>
             )}
 
             {/* Status Indicator */}
