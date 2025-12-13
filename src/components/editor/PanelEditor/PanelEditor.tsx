@@ -373,10 +373,15 @@ DO NOT modify ANY character appearance between panels!`;
       // 캐릭터가 없거나 배경만 있는 장면인 경우
       const shouldExcludeCharacters = isBackgroundOnlyScene && panel.characters.length === 0;
 
-      // 캐릭터 제외 시 경고 추가
-      const noCharacterWarning = shouldExcludeCharacters
-        ? '\n\n⚠️ THIS IS A BACKGROUND/ENVIRONMENT SHOT - DO NOT draw any people, characters, or human figures. Focus ONLY on the environment, scenery, and atmosphere.'
-        : '';
+      // 캐릭터 관련 지시 (배경만 또는 캐릭터 필수)
+      let characterDirective = '';
+      if (shouldExcludeCharacters) {
+        characterDirective = '\n\n⚠️ THIS IS A BACKGROUND/ENVIRONMENT SHOT - DO NOT draw any people, characters, or human figures. Focus ONLY on the environment, scenery, and atmosphere.';
+      } else if (panel.characters.length > 0 || hasCharacterInScene) {
+        // 캐릭터가 있는 장면에서는 반드시 캐릭터를 그리라고 강조
+        const charNames = panel.characters.map(c => c.characterName).join(', ');
+        characterDirective = `\n\n🎭 THIS SCENE MUST INCLUDE CHARACTERS: ${charNames || 'as described in scene'}. DO NOT create a background-only image. The characters MUST appear in this panel as described.`;
+      }
 
       console.log('[PanelEditor] Scene analysis - hasCharacterInScene:', hasCharacterInScene, 'isBackgroundOnlyScene:', isBackgroundOnlyScene, 'shouldExcludeCharacters:', shouldExcludeCharacters);
 
@@ -386,7 +391,7 @@ DO NOT modify ANY character appearance between panels!`;
 DO NOT draw ANY text, letters, words, speech bubbles, captions, signs, or Korean/English/Japanese characters.
 NO 한글, NO hangul, NO writing of any kind. The image must be COMPLETELY TEXT-FREE.
 Text will be added separately later. Drawing text will RUIN the image.
-${noCharacterWarning}
+${characterDirective}
 
 SCENE DESCRIPTION:
 ${sceneDesc}
