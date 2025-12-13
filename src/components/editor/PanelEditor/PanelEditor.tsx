@@ -80,7 +80,11 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
       const era = worldSetting?.era || '';
       const setting = worldSetting?.setting || '';
 
-      // 피드백에서 시대 오버라이드 감지 (피드백이 최우선!)
+      // 장면 설명에서 시대/배경 감지 (장면 설명이 최우선!)
+      const sceneRequestsModern = /현대|modern|사무실|office|아파트|apartment|도시|city|스마트폰|컴퓨터|노트북|빌딩|building|학교|school|카페|cafe|버스|bus|지하철|subway|병원|hospital/i.test(sceneDesc);
+      const sceneRequestsAncient = /고대|ancient|고구려|삼국|조선|고려|한복|전통|궁궐|palace|성곽|castle|초가|움막|한옥|hanok/i.test(sceneDesc);
+
+      // 피드백에서 시대 오버라이드 감지 (장면 설명 다음으로 우선!)
       const feedbackRequestsModern = /현대|modern|사무실|office|아파트|apartment|도시|city|스마트폰|컴퓨터|노트북/i.test(feedback);
       const feedbackRequestsAncient = /고대|ancient|고구려|삼국|조선|고려|한복|전통/i.test(feedback);
 
@@ -89,47 +93,52 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
       let costumeStyle = '';
       let isHistorical = false;
 
-      // 피드백이 현대를 요청하면 현대로 설정 (세계관 무시!)
-      if (feedbackRequestsModern) {
+      // 우선순위 1: 장면 설명에 시대/배경이 명시되어 있으면 최우선 적용
+      if (sceneRequestsModern) {
+        eraStyle = 'modern contemporary Korean setting, current day Seoul, modern buildings, urban environment';
+        costumeStyle = 'modern Korean fashion, casual modern clothing';
+        isHistorical = false;
+        console.log('[PanelEditor] Scene description requests modern setting - highest priority');
+      } else if (sceneRequestsAncient) {
+        eraStyle = 'ancient Korean historical setting, traditional architecture';
+        costumeStyle = 'traditional Korean hanbok';
+        isHistorical = true;
+        console.log('[PanelEditor] Scene description requests ancient setting - highest priority');
+      }
+      // 우선순위 2: 피드백에 시대 지정이 있으면 적용
+      else if (feedbackRequestsModern) {
         eraStyle = 'modern contemporary Korean setting, current day Seoul, modern buildings, urban environment';
         costumeStyle = 'modern Korean fashion, casual modern clothing';
         isHistorical = false;
         console.log('[PanelEditor] Feedback requests modern setting - overriding worldbuilding');
-      }
-      // 피드백이 고대를 요청하면 고대로 설정
-      else if (feedbackRequestsAncient) {
+      } else if (feedbackRequestsAncient) {
         eraStyle = 'ancient Korean historical setting, traditional architecture';
         costumeStyle = 'traditional Korean hanbok';
         isHistorical = true;
         console.log('[PanelEditor] Feedback requests ancient setting');
       }
-      // 피드백에 시대 지정이 없으면 세계관 사용
+      // 우선순위 3: 장면 설명과 피드백에 시대 지정이 없으면 세계관 사용
       else if (era.includes('철기') || era.includes('고구려') || era.includes('ancient') || era.includes('삼국') ||
           setting.includes('철기') || setting.includes('고구려') || setting.includes('삼국')) {
         eraStyle = 'ancient Korean Three Kingdoms period, traditional hanok architecture, wooden structures';
         costumeStyle = 'ancient Korean hanbok, layered silk robes, traditional hair accessories';
         isHistorical = true;
+        console.log('[PanelEditor] Using worldbuilding era setting (ancient)');
       } else if (era.includes('조선') || setting.includes('조선')) {
         eraStyle = 'Joseon Dynasty Korea, traditional hanok, paper windows';
         costumeStyle = 'Joseon era hanbok';
         isHistorical = true;
+        console.log('[PanelEditor] Using worldbuilding era setting (Joseon)');
       } else if (era.includes('고려') || setting.includes('고려')) {
         eraStyle = 'Goryeo Dynasty Korea, Buddhist temples, traditional architecture';
         costumeStyle = 'Goryeo era traditional clothing';
         isHistorical = true;
+        console.log('[PanelEditor] Using worldbuilding era setting (Goryeo)');
       } else if (era.includes('현대') || era.includes('modern') || setting.includes('현대')) {
         eraStyle = 'modern contemporary Korean setting, current day';
         costumeStyle = 'modern Korean fashion';
         isHistorical = false;
-      }
-
-      // 장면 설명에서도 시대 감지 (세계관 없고 피드백 없을 때)
-      if (!eraStyle) {
-        const isModernScene = /modern|office|computer|contemporary|apartment|city|urban|smartphone|laptop|desk|cubicle/i.test(sceneDesc);
-        if (isModernScene) {
-          eraStyle = 'modern contemporary Korean setting, current day';
-          costumeStyle = 'modern Korean fashion';
-        }
+        console.log('[PanelEditor] Using worldbuilding era setting (modern)');
       }
 
       // 역사물인 경우 강력한 시대 일관성 경고 추가
