@@ -117,6 +117,7 @@ export async function renderSpeechBubble(
 
 /**
  * 텍스트를 지정된 너비에 맞게 여러 줄로 나눕니다.
+ * 단어 단위로 줄바꿈하여 단어가 중간에 잘리지 않도록 합니다.
  */
 function wrapText(
   ctx: CanvasRenderingContext2D,
@@ -124,23 +125,45 @@ function wrapText(
   maxWidth: number
 ): string[] {
   const lines: string[] = [];
-  const words = text.split('');
+
+  // 띄어쓰기와 특수문자를 기준으로 단어 분리 (한글/영어 모두 처리)
+  // 공백은 유지하면서 분리
+  const tokens = text.split(/(\s+)/);
   let currentLine = '';
 
-  for (const char of words) {
-    const testLine = currentLine + char;
+  for (const token of tokens) {
+    if (!token) continue;
+
+    const testLine = currentLine + token;
     const metrics = ctx.measureText(testLine);
 
     if (metrics.width > maxWidth && currentLine.length > 0) {
-      lines.push(currentLine);
-      currentLine = char;
+      // 현재 줄이 너무 길면, 현재 줄을 저장하고 새 줄 시작
+      lines.push(currentLine.trim());
+      currentLine = token;
+
+      // 단일 토큰이 maxWidth보다 긴 경우 (매우 긴 단어)
+      // 이 경우에만 글자 단위로 분리
+      if (ctx.measureText(token).width > maxWidth) {
+        const chars = token.split('');
+        currentLine = '';
+        for (const char of chars) {
+          const charTestLine = currentLine + char;
+          if (ctx.measureText(charTestLine).width > maxWidth && currentLine.length > 0) {
+            lines.push(currentLine);
+            currentLine = char;
+          } else {
+            currentLine = charTestLine;
+          }
+        }
+      }
     } else {
       currentLine = testLine;
     }
   }
 
-  if (currentLine) {
-    lines.push(currentLine);
+  if (currentLine.trim()) {
+    lines.push(currentLine.trim());
   }
 
   return lines;
