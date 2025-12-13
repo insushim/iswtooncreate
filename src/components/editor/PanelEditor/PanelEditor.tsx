@@ -57,44 +57,116 @@ export const PanelEditor: React.FC<PanelEditorProps> = ({
       );
       const currentPanelIndex = currentEpisode?.panels.findIndex(p => p.id === panel.id) ?? -1;
 
-      // 앞 5개 씬 참조 정보 수집 (일관성 유지용) - 캐릭터 외모 상세 포함
+      // 앞 10개 씬 참조 정보 수집 (일관성 유지용) - 캐릭터 외모 전체 상세 포함
       let previousScenesContext = '';
+      let characterConsistencyMap: Record<string, string> = {}; // 캐릭터별 외모 정보 누적
+
       if (currentEpisode && currentPanelIndex > 0) {
-        const startIdx = Math.max(0, currentPanelIndex - 5);
+        const startIdx = Math.max(0, currentPanelIndex - 10); // 10개 씬 참조
         const previousPanels = currentEpisode.panels.slice(startIdx, currentPanelIndex);
 
-        if (previousPanels.length > 0) {
-          const prevContexts = previousPanels.map((p, idx) => {
-            // 각 캐릭터의 상세 외모 정보 수집
-            const charDetails = p.characters.map(c => {
-              const fullChar = currentProject.characters.find(
-                ch => ch.name === c.characterName || ch.koreanName === c.characterName
-              );
-              if (fullChar) {
-                const hairColor = fullChar.appearance?.hairColor || 'black';
-                const hairStyle = fullChar.appearance?.hairStyle || '';
-                const features = fullChar.appearance?.distinguishingFeatures || [];
-                const hasGlasses = features.some(f => /안경|glasses/i.test(f));
-                const hasTiedHair = /묶|ponytail|bun|tied|updo/i.test(hairStyle);
-                const hasShortHair = /단발|short|bob/i.test(hairStyle);
-                const hasMessyHair = /흐트러|messy|disheveled|unkempt/i.test(hairStyle);
+        // 이전 패널들에서 등장한 모든 캐릭터의 외모 정보 수집
+        previousPanels.forEach(p => {
+          p.characters.forEach(c => {
+            const fullChar = currentProject.characters.find(
+              ch => ch.name === c.characterName || ch.koreanName === c.characterName
+            );
+            if (fullChar && !characterConsistencyMap[fullChar.name]) {
+              const app = fullChar.appearance || {};
+              const features = app.distinguishingFeatures || [];
 
-                let hairDesc = `${hairColor} ${hairStyle} hair`;
-                if (hasTiedHair) hairDesc += ' (TIED UP)';
-                if (hasShortHair) hairDesc += ' (SHORT)';
-                if (hasMessyHair) hairDesc += ' (MESSY/DISHEVELED)';
+              // 모든 외모 요소 수집
+              const hairColor = app.hairColor || 'black';
+              const hairStyle = app.hairStyle || '';
+              const eyeColor = app.eyeColor || 'dark brown';
+              const eyeShape = app.eyeShape || '';
+              const skinTone = app.skinTone || 'fair';
+              const faceShape = app.faceShape || '';
+              const bodyType = app.bodyType || '';
+              const height = app.height || '';
 
-                return `${c.characterName}: ${hairDesc}${hasGlasses ? ', WEARING GLASSES' : ''}`;
+              // 특징 분석
+              const hasGlasses = features.some(f => /안경|glasses|眼鏡/i.test(f));
+              const hasMole = features.some(f => /점|mole|beauty mark/i.test(f));
+              const hasScar = features.some(f => /흉터|scar|상처/i.test(f));
+              const hasTattoo = features.some(f => /문신|tattoo/i.test(f));
+              const hasPiercing = features.some(f => /피어싱|piercing|귀걸이|earring/i.test(f));
+              const hasBangs = features.some(f => /앞머리|bangs|fringe/i.test(f));
+              const hasBeard = features.some(f => /수염|beard|mustache/i.test(f));
+
+              // 머리스타일 상세
+              let hairNote = '';
+              if (/묶|ponytail|bun|tied|updo|올린|twintail|트윈/i.test(hairStyle)) hairNote = 'TIED/PONYTAIL';
+              else if (/단발|short|bob|숏|pixie/i.test(hairStyle)) hairNote = 'SHORT';
+              else if (/흐트러|messy|disheveled|unkempt|헝클/i.test(hairStyle)) hairNote = 'MESSY';
+              else if (/긴|long|롱|waist|허리/i.test(hairStyle)) hairNote = 'LONG';
+              else if (/웨이브|wave|curly|곱슬/i.test(hairStyle)) hairNote = 'WAVY/CURLY';
+              else if (/스트레이트|straight|생머리/i.test(hairStyle)) hairNote = 'STRAIGHT';
+
+              // 캐릭터 외모 정보 문자열 생성
+              let charAppearance = `${hairColor} ${hairStyle} hair`;
+              if (hairNote) charAppearance += ` [${hairNote}]`;
+              charAppearance += `, ${eyeColor} eyes`;
+              if (eyeShape) charAppearance += ` (${eyeShape})`;
+              charAppearance += `, ${skinTone} skin`;
+              if (faceShape) charAppearance += `, ${faceShape} face`;
+              if (bodyType) charAppearance += `, ${bodyType} build`;
+              if (height) charAppearance += `, ${height}`;
+
+              // 특징 추가
+              const accessoryList: string[] = [];
+              if (hasGlasses) accessoryList.push('GLASSES');
+              if (hasMole) accessoryList.push('MOLE/BEAUTY MARK');
+              if (hasScar) accessoryList.push('SCAR');
+              if (hasTattoo) accessoryList.push('TATTOO');
+              if (hasPiercing) accessoryList.push('PIERCING/EARRINGS');
+              if (hasBangs) accessoryList.push('BANGS');
+              if (hasBeard) accessoryList.push('BEARD/MUSTACHE');
+
+              if (accessoryList.length > 0) {
+                charAppearance += ` | MUST HAVE: ${accessoryList.join(', ')}`;
               }
-              return c.characterName;
-            }).join('; ');
 
-            return `Panel ${startIdx + idx + 1}: ${p.composition?.slice(0, 100) || 'no description'} [Characters: ${charDetails}] [Camera: ${p.cameraAngle}] [Mood: ${p.mood || 'neutral'}]`;
+              // 기타 특징
+              const otherFeatures = features.filter(f =>
+                !/안경|glasses|점|mole|흉터|scar|문신|tattoo|피어싱|piercing|귀걸이|earring|앞머리|bangs|수염|beard/i.test(f)
+              );
+              if (otherFeatures.length > 0) {
+                charAppearance += ` | Other: ${otherFeatures.join(', ')}`;
+              }
+
+              characterConsistencyMap[fullChar.name] = charAppearance;
+            }
+          });
+        });
+
+        if (previousPanels.length > 0) {
+          // 캐릭터별 외모 요약
+          const charSummary = Object.entries(characterConsistencyMap)
+            .map(([name, appearance]) => `• ${name}: ${appearance}`)
+            .join('\n');
+
+          // 최근 3개 패널의 장면 컨텍스트
+          const recentPanels = previousPanels.slice(-3);
+          const recentContexts = recentPanels.map((p, idx) => {
+            const panelNum = currentPanelIndex - (recentPanels.length - idx);
+            const chars = p.characters.map(c => c.characterName).join(', ');
+            return `Panel ${panelNum}: ${p.composition?.slice(0, 80) || 'no description'} [${chars}]`;
           }).join('\n');
-          previousScenesContext = `\n\nPREVIOUS PANELS CONTEXT (CRITICAL - maintain EXACT visual consistency):
-${prevContexts}
 
-⚠️ HAIRSTYLE CONSISTENCY: If a character has tied hair/ponytail/bun in previous panels, they MUST have the SAME hairstyle. If they wear glasses, they MUST still wear glasses. Do NOT change hairstyles or accessories between panels unless the story explicitly shows them changing.`;
+          previousScenesContext = `\n\n═══ CHARACTER CONSISTENCY REFERENCE (from previous 10 panels) ═══
+${charSummary}
+
+RECENT SCENE CONTEXT:
+${recentContexts}
+
+⚠️ CRITICAL CONSISTENCY RULES:
+1. HAIR: Same color, length, and style (tied/loose/short/long) - NO changes
+2. FACE: Same shape, skin tone, eye color and shape - NO changes
+3. ACCESSORIES: Glasses, earrings, piercings - MUST remain if character has them
+4. FEATURES: Moles, scars, tattoos, bangs, beard - MUST be consistent
+5. BODY: Same height and build - NO changes
+DO NOT modify ANY character appearance between panels!`;
         }
       }
 
