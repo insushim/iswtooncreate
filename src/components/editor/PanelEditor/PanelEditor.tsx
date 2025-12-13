@@ -358,12 +358,26 @@ DO NOT modify ANY character appearance between panels!`;
         ? `\n\n**CRITICAL USER FEEDBACK (MUST APPLY)**: ${feedback}\nThis feedback overrides any conflicting settings above.`
         : '';
 
+      // 장면 설명에서 캐릭터가 필요 없는 장면인지 감지
+      const isNoCharacterScene = /\[LOCATION:.*\](?!.*\[CHARACTER)|\[FOCUS:(?!.*person|.*face|.*eye|.*hand).*\]|\[SCENE:.*darkness|.*black|.*fade\]|cityscape|skyline|landscape|establishing shot|background only|no character|환경샷|배경만|도시 전경|하늘|빌딩|건물만/i.test(sceneDesc);
+
+      // 캐릭터가 없거나 배경만 있는 장면인 경우
+      const shouldExcludeCharacters = isNoCharacterScene && panel.characters.length === 0;
+
+      // 캐릭터 제외 시 경고 추가
+      const noCharacterWarning = shouldExcludeCharacters
+        ? '\n\n⚠️ THIS IS A BACKGROUND/ENVIRONMENT SHOT - DO NOT draw any people, characters, or human figures. Focus ONLY on the environment, scenery, and atmosphere.'
+        : '';
+
+      console.log('[PanelEditor] Scene analysis - isNoCharacterScene:', isNoCharacterScene, 'shouldExcludeCharacters:', shouldExcludeCharacters);
+
       const prompt = `Webtoon illustration, Korean manhwa style, clean detailed lineart, cel-shading, professional quality.
 
 🚫🚫🚫 CRITICAL - NO TEXT ALLOWED 🚫🚫🚫
 DO NOT draw ANY text, letters, words, speech bubbles, captions, signs, or Korean/English/Japanese characters.
 NO 한글, NO hangul, NO writing of any kind. The image must be COMPLETELY TEXT-FREE.
 Text will be added separately later. Drawing text will RUIN the image.
+${noCharacterWarning}
 
 SCENE DESCRIPTION:
 ${sceneDesc}
@@ -374,15 +388,15 @@ VISUAL STYLE:
 - Lighting: ${lightingDesc}
 - Mood/Atmosphere: ${moodDesc}
 
-${characterDetails ? `CHARACTERS IN SCENE:\n${characterDetails}` : ''}
+${!shouldExcludeCharacters && characterDetails ? `CHARACTERS IN SCENE:\n${characterDetails}` : ''}
 
 ${eraStyle ? `SETTING/ERA: ${eraStyle}` : ''}
 ${costumeStyle ? `COSTUME STYLE: ${costumeStyle}` : ''}
 ${historicalWarning}
-${previousScenesContext}
+${!shouldExcludeCharacters ? previousScenesContext : ''}
 ${feedbackSection}
 
-IMPORTANT: Maintain visual consistency with character appearances. Use ${cameraDesc} composition. Create ${moodDesc} with ${lightingDesc}.
+IMPORTANT: ${shouldExcludeCharacters ? 'This is a BACKGROUND ONLY shot - NO characters or people.' : 'Maintain visual consistency with character appearances.'} Use ${cameraDesc} composition. Create ${moodDesc} with ${lightingDesc}.
 REMINDER: NO TEXT, NO LETTERS, NO SPEECH BUBBLES - pure illustration only.`;
 
       console.log('[PanelEditor] Generated prompt:', prompt);
@@ -391,42 +405,46 @@ REMINDER: NO TEXT, NO LETTERS, NO SPEECH BUBBLES - pure illustration only.`;
       // 패널에 등장하는 캐릭터들의 레퍼런스 이미지 수집 (최대 14개 - Gemini 3 Pro Image 지원)
       const allRefImages: string[] = [];
 
-      // 1. 캐릭터 참조 이미지 수집 (얼굴, 표정, 포즈, 의상)
-      for (const pc of panel.characters) {
-        const fullCharacter = currentProject.characters.find(
-          (c) => c.name === pc.characterName || c.koreanName === pc.characterName
-        );
-        if (fullCharacter) {
-          // anchor 이미지 (기본 얼굴/외모) - 최우선
-          const anchorImages = fullCharacter.referenceImages?.filter(img => img.type === 'anchor') || [];
-          for (const img of anchorImages.slice(0, 2)) {
-            allRefImages.push(img.imageData);
-          }
+      // 1. 캐릭터 참조 이미지 수집 (배경만 있는 장면에서는 건너뜀)
+      if (!shouldExcludeCharacters) {
+        for (const pc of panel.characters) {
+          const fullCharacter = currentProject.characters.find(
+            (c) => c.name === pc.characterName || c.koreanName === pc.characterName
+          );
+          if (fullCharacter) {
+            // anchor 이미지 (기본 얼굴/외모) - 최우선
+            const anchorImages = fullCharacter.referenceImages?.filter(img => img.type === 'anchor') || [];
+            for (const img of anchorImages.slice(0, 2)) {
+              allRefImages.push(img.imageData);
+            }
 
-          // 표정 참조 이미지 (패널의 감정에 맞는 것)
-          const expressionImages = fullCharacter.expressions?.filter(exp => exp.imageData) || [];
-          for (const exp of expressionImages.slice(0, 1)) {
-            if (exp.imageData) allRefImages.push(exp.imageData);
-          }
+            // 표정 참조 이미지 (패널의 감정에 맞는 것)
+            const expressionImages = fullCharacter.expressions?.filter(exp => exp.imageData) || [];
+            for (const exp of expressionImages.slice(0, 1)) {
+              if (exp.imageData) allRefImages.push(exp.imageData);
+            }
 
-          // 포즈 참조 이미지
-          const poseImages = fullCharacter.poses?.filter(pose => pose.imageData) || [];
-          for (const pose of poseImages.slice(0, 1)) {
-            if (pose.imageData) allRefImages.push(pose.imageData);
-          }
+            // 포즈 참조 이미지
+            const poseImages = fullCharacter.poses?.filter(pose => pose.imageData) || [];
+            for (const pose of poseImages.slice(0, 1)) {
+              if (pose.imageData) allRefImages.push(pose.imageData);
+            }
 
-          // 의상 참조 이미지
-          const outfitImages = fullCharacter.outfits?.filter(outfit => outfit.imageData) || [];
-          for (const outfit of outfitImages.slice(0, 1)) {
-            if (outfit.imageData) allRefImages.push(outfit.imageData);
-          }
+            // 의상 참조 이미지
+            const outfitImages = fullCharacter.outfits?.filter(outfit => outfit.imageData) || [];
+            for (const outfit of outfitImages.slice(0, 1)) {
+              if (outfit.imageData) allRefImages.push(outfit.imageData);
+            }
 
-          // 기타 레퍼런스 이미지
-          const otherRefs = fullCharacter.referenceImages?.filter(img => img.type !== 'anchor') || [];
-          for (const img of otherRefs.slice(0, 1)) {
-            allRefImages.push(img.imageData);
+            // 기타 레퍼런스 이미지
+            const otherRefs = fullCharacter.referenceImages?.filter(img => img.type !== 'anchor') || [];
+            for (const img of otherRefs.slice(0, 1)) {
+              allRefImages.push(img.imageData);
+            }
           }
         }
+      } else {
+        console.log('[PanelEditor] Skipping character reference images - background only scene');
       }
 
       // 2. 배경/장소 참조 이미지 수집
