@@ -360,6 +360,11 @@ DO NOT modify ANY character appearance between panels!`;
 
       const prompt = `Webtoon illustration, Korean manhwa style, clean detailed lineart, cel-shading, professional quality.
 
+🚫🚫🚫 CRITICAL - NO TEXT ALLOWED 🚫🚫🚫
+DO NOT draw ANY text, letters, words, speech bubbles, captions, signs, or Korean/English/Japanese characters.
+NO 한글, NO hangul, NO writing of any kind. The image must be COMPLETELY TEXT-FREE.
+Text will be added separately later. Drawing text will RUIN the image.
+
 SCENE DESCRIPTION:
 ${sceneDesc}
 
@@ -377,7 +382,8 @@ ${historicalWarning}
 ${previousScenesContext}
 ${feedbackSection}
 
-IMPORTANT: Maintain visual consistency with character appearances. Use ${cameraDesc} composition. Create ${moodDesc} with ${lightingDesc}.`;
+IMPORTANT: Maintain visual consistency with character appearances. Use ${cameraDesc} composition. Create ${moodDesc} with ${lightingDesc}.
+REMINDER: NO TEXT, NO LETTERS, NO SPEECH BUBBLES - pure illustration only.`;
 
       console.log('[PanelEditor] Generated prompt:', prompt);
 
